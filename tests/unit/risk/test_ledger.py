@@ -20,7 +20,17 @@ def test_peak_and_day_start(tmp_path: Path) -> None:
     assert s.day_start_equity == 1000.0
     nxt = T.normalize() + pd.Timedelta(days=1)
     led.on_equity(nxt, 990.0)
-    assert led.state(nxt, window_s=300).day_start_equity == 990.0  # resets at 00:00 UTC
+    # resets at 00:00 UTC to the last equity seen before midnight (1050), not the first one after it
+    assert led.state(nxt, window_s=300).day_start_equity == 1050.0
+
+
+def test_losses_while_down_overnight_still_count(tmp_path: Path) -> None:
+    db = tmp_path / "r.db"
+    with RiskLedger(db) as led:
+        led.on_equity(pd.Timestamp("2024-03-01 23:00", tz="UTC"), 1000.0)
+    with RiskLedger(db) as led:  # process was down over midnight; restarts after losing 2%
+        led.on_equity(pd.Timestamp("2024-03-02 10:00", tz="UTC"), 980.0)
+        assert led.state(pd.Timestamp("2024-03-02 10:00", tz="UTC"), window_s=300).day_start_equity == 1000.0
 
 
 def test_state_survives_restart(tmp_path: Path) -> None:
@@ -72,3 +82,15 @@ def test_audit_log(tmp_path: Path) -> None:
 def test_unknown_error_kind_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         RiskLedger(tmp_path / "r.db").record_api_error(T, "oops")  # type: ignore[arg-type]
+
+
+def test_lock_and_audit_are_atomic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    led = RiskLedger(tmp_path / "r.db")
+
+    def boom(*a: object, **k: object) -> None:
+        raise RuntimeError("crash while writing the audit record")
+
+    monkeypatch.setattr(led, "_audit", boom)
+    with pytest.raises(RuntimeError):
+        led.lock(T, "max_drawdown", source="gate")
+    assert not RiskLedger(tmp_path / "r.db").locked  # rolled back: no lock without its audit trail

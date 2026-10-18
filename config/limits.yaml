@@ -1,0 +1,23 @@
+# Risk limits (spec §4, approved 2026-10-18). Loaded once at startup; the file hash is logged.
+# Changing a value requires a reviewed commit and a restart. Hard ceilings live in agent/risk/limits.py.
+
+# exposure, fractions of equity
+max_weight: 0.25
+max_gross: 1.0
+# losses
+max_daily_loss: 0.01   # vs 00:00 UTC equity -> reduce-only for the rest of the day
+max_drawdown: 0.08     # vs peak equity -> flatten, lock, human unlock required
+# data freshness
+max_book_age_s: 5.0
+stale_flatten_s: 60.0
+max_bars_late: 1
+# exchange/API health
+api_error_limit: 5
+order_reject_limit: 3
+api_window_s: 300.0
+max_clock_drift_ms: 500.0
+# collateral and margin
+depeg_reduce: 0.005
+depeg_flatten: 0.02
+max_margin_ratio: 0.30
+margin_reduce_factor: 0.75

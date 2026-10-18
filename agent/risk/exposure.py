@@ -15,8 +15,11 @@ from agent.data.datasets import Market
 
 class Verdict(StrEnum):
     ACCEPT = "ACCEPT"
-    CLIP = "CLIP"
+    CLIP = "CLIP"  # an exposure cap shrank the target
+    REDUCE = "REDUCE"  # reduce-only mode: may only move towards flat
     REJECT = "REJECT"
+    HOLD = "HOLD"  # halt mode: send no orders, keep current positions
+    FLATTEN = "FLATTEN"
 
 
 @dataclass(frozen=True)
@@ -33,7 +36,8 @@ class ExposureGate:
     max_gross: float = 1.0  # sum of |weights| (spec §4: no net leverage > 1x in v1)
     allow_spot_short: bool = False
 
-    def check(self, targets: list[Target]) -> list[Decision]:
+    def check(self, targets: list[Target], ctx: object = None) -> list[Decision]:
+        """`ctx` is accepted for interface compatibility with RiskGate and ignored."""
         weights = [t.weight for t in targets]
         rules = [""] * len(targets)
 
@@ -63,8 +67,8 @@ class ExposureGate:
         if gross > self.max_gross:
             f = self.max_gross / gross
             for i in range(len(weights)):
+                weights[i] *= f  # zero weights stay zero
                 if weights[i]:
-                    weights[i] *= f
                     rules[i] = rules[i] or "max_gross"
 
         out = []

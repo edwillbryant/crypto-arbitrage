@@ -26,7 +26,8 @@ from agent.core.types import Instrument, Target
 from agent.data.datasets import FUNDING, INTERVALS, Market, klines
 from agent.data.store import PITStore
 from agent.research.costs import CostModel
-from agent.risk.exposure import Decision
+from agent.risk.exposure import Decision, Verdict
+from agent.risk.gate import GateContext
 from agent.sizing.voltarget import Sizer
 from agent.strategies.base import Snapshot, Strategy
 
@@ -37,7 +38,7 @@ DECISION_COLUMNS = ["time", "instrument", "raw_weight", "sized_weight", "final_w
 
 
 class Gate(Protocol):
-    def check(self, targets: list[Target]) -> list[Decision]: ...
+    def check(self, targets: list[Target], ctx: GateContext) -> list[Decision]: ...
 
 
 @dataclass(frozen=True)
@@ -249,7 +250,7 @@ class _Simulation:
         self.exposure_pts[t] = gross / equity if equity > 0 else math.inf
         return marks, equity
 
-    def _decide(self, t: pd.Timestamp) -> tuple[list[Target], list[Target], list[Decision]]:
+    def _decide(self, t: pd.Timestamp, equity: float) -> tuple[list[Target], list[Target], list[Decision]]:
         snap = Snapshot(t, {key: feed.upto(t, lb) for key, (feed, lb) in self.req_feeds.items()})
         raw = self.strategy.decide(snap)
         seen = {x.instrument.key for x in raw}
@@ -258,9 +259,12 @@ class _Simulation:
         targets = raw + [Target(i, 0.0) for i in self.instruments if i.key not in seen]
         closes = {k: self.exec_feeds[k].closes_upto(t, self.config.vol_lookback) for k in self.by_key}
         sized = self.sizer.size(targets, closes)
-        return targets, sized, self.gate.check(sized)
+        current = {k: q * self.last_mark.get(k, 0.0) / equity for k, q in self.qty.items() if q}
+        return targets, sized, self.gate.check(sized, GateContext(t, equity, current))
 
     def _execute(self, t: pd.Timestamp, d: Decision, marks: dict[str, float | None], equity: float) -> None:
+        if d.verdict is Verdict.HOLD:
+            return  # the gate halted trading: send nothing
         tgt = d.target
         k = tgt.instrument.key
         if tgt.weight != 0:
@@ -303,7 +307,7 @@ class _Simulation:
             if equity <= 0:
                 self.events.append(f"{t}: equity {equity:.2f} <= 0; backtest stopped")
                 break
-            targets, sized, decisions = self._decide(t)
+            targets, sized, decisions = self._decide(t, equity)
             for d, raw_t, sized_t in zip(decisions, targets, sized, strict=True):
                 row = {"time": t, "instrument": d.target.instrument.key, "raw_weight": raw_t.weight,
                        "sized_weight": sized_t.weight, "final_weight": d.target.weight,

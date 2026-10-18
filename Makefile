@@ -1,6 +1,6 @@
 PY ?= python3
 
-.PHONY: check lint types test install
+.PHONY: check lint types test install cov
 
 install:
 	$(PY) -m pip install -e ".[dev]"
@@ -15,4 +15,8 @@ types:
 test:
 	$(PY) -m pytest
 
-check: lint types test
+# The RiskGate is the last line of defence: every branch of agent/risk must be exercised.
+cov:
+	$(PY) -m pytest --cov=agent/risk --cov-branch --cov-report=term-missing --cov-fail-under=100
+
+check: lint types test cov

@@ -59,3 +59,15 @@ def test_digest_changes_with_content(tmp_path: Path) -> None:
     a.write_text("max_drawdown: 0.08\n")
     b.write_text("max_drawdown: 0.07\n")
     assert load_limits(a)[1] != load_limits(b)[1]
+
+
+def test_max_weight_cannot_exceed_max_gross() -> None:
+    with pytest.raises(pydantic.ValidationError):
+        Limits(max_weight=0.3, max_gross=0.2)
+
+
+def test_non_mapping_config_rejected(tmp_path: Path) -> None:
+    p = tmp_path / "l.yaml"
+    p.write_text("- 1\n- 2\n")
+    with pytest.raises(ValueError, match="mapping"):
+        load_limits(p)

@@ -8,10 +8,17 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import pandas as pd
+
 from agent.data.datasets import FUNDING, METRICS, PREMIUM_1H, Dataset, klines
 from agent.data.ingest import ingest
 from agent.data.quality import quality_report, render_markdown
 from agent.data.store import PITStore
+from agent.risk.killswitch import KillSwitch
+from agent.risk.ledger import RiskLedger
+
+STATE_DB = Path("data/state/risk.db")
+KILL_FLAG = Path("data/state/KILL")
 
 DEFAULT_DATASETS: dict[str, Dataset] = {
     d.name: d
@@ -69,6 +76,35 @@ def _cmd_quality(args: argparse.Namespace) -> int:
     return 1 if bad else 0
 
 
+def _ledger(args: argparse.Namespace) -> RiskLedger:
+    args.state.parent.mkdir(parents=True, exist_ok=True)
+    return RiskLedger(args.state)
+
+
+def _cmd_kill(args: argparse.Namespace) -> int:
+    with _ledger(args) as led:
+        KillSwitch(led, args.flag).trip(pd.Timestamp.now(tz="UTC"), source="cli", reason=args.reason)
+    print("KILL SWITCH TRIPPED: trading is locked; the running agent will cancel all orders and flatten.")
+    return 0
+
+
+def _cmd_unlock(args: argparse.Namespace) -> int:
+    if not args.confirm or not args.reason:
+        print(
+            "refusing: unlock requires --confirm and --reason (it also resets the drawdown peak)",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        with _ledger(args) as led:
+            KillSwitch(led, args.flag).reset(pd.Timestamp.now(tz="UTC"), reason=args.reason)
+    except ValueError as e:
+        print(f"refusing: {e}", file=sys.stderr)
+        return 2
+    print("unlocked; the drawdown peak was reset to current equity")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="agent")
     sub = p.add_subparsers(dest="group", required=True)
@@ -87,6 +123,16 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--store", type=Path, default=Path("data/store"))
     q.add_argument("--out", type=Path, default=Path("docs/data_quality.md"))
     q.set_defaults(func=_cmd_quality)
+
+    for name, func, help_ in (("kill", _cmd_kill, "trip the kill switch: cancel all, flatten, lock"),
+                              ("unlock", _cmd_unlock, "release the lock (human only)")):  # fmt: skip
+        c = sub.add_parser(name, help=help_)
+        c.add_argument("--state", type=Path, default=STATE_DB)
+        c.add_argument("--flag", type=Path, default=KILL_FLAG)
+        c.add_argument("--reason", default="manual" if name == "kill" else None)
+        if name == "unlock":
+            c.add_argument("--confirm", action="store_true")
+        c.set_defaults(func=func)
     return p
 
 

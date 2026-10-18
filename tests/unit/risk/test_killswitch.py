@@ -50,12 +50,21 @@ def test_http_can_trip_but_never_unlock(tmp_path: Path) -> None:
                 urllib.request.Request(f"http://{host}:{port}/unlock", method="POST"), timeout=5
             )
         assert e.value.code == 404
+        e.value.close()
         assert not ks.tripped(T)
+        with urllib.request.urlopen(f"http://{host}:{port}/status", timeout=5) as r:
+            assert r.read() == b"unlocked\n"
         with urllib.request.urlopen(
             urllib.request.Request(f"http://{host}:{port}/kill", method="POST"), timeout=5
         ) as r:
             assert r.status == 200
         assert ks.tripped(T)
+        with urllib.request.urlopen(f"http://{host}:{port}/status", timeout=5) as r:
+            assert r.read() == b"locked\n"
+        with pytest.raises(urllib.error.HTTPError) as e2:
+            urllib.request.urlopen(f"http://{host}:{port}/elsewhere", timeout=5)
+        assert e2.value.code == 404
+        e2.value.close()
     finally:
         server.shutdown()
         server.server_close()
