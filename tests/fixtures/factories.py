@@ -82,3 +82,15 @@ def make_zip(member: str, payload: bytes) -> bytes:
 
 def checksum_text(zip_bytes: bytes, filename: str) -> bytes:
     return f"{hashlib.sha256(zip_bytes).hexdigest()}  {filename}\n".encode()
+
+
+def kline_csv_from_prices(start: str, interval: str, opens: list[float], closes: list[float]) -> bytes:
+    """Deterministic klines with exact open/close prices (high/low bracket them)."""
+    step = pd.Timedelta(interval)
+    t0 = pd.Timestamp(start, tz="UTC")
+    lines = []
+    for i, (o, c) in enumerate(zip(opens, closes, strict=True)):
+        ot = int((t0 + i * step).value // 1_000_000)
+        ct = ot + int(step.value // 1_000_000) - 1
+        lines.append(f"{ot},{o},{max(o, c)},{min(o, c)},{c},1.0,{ct},{c},1,0.5,{c / 2},0")
+    return ("\n".join(lines) + "\n").encode()
