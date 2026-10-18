@@ -1,6 +1,6 @@
 # Phase 2 — ARCHITECTURE
 
-**Status:** DRAFT, awaiting owner approval (Gate 2 of 6)
+**Status:** APPROVED 2026-10-18 (Gate 2 of 6)
 **Inputs:** `docs/01-SPEC.md` (approved 2026-10-18: Option A Binance/Bybit, default limits, C1–C5)
 **Date:** 2026-10-18
 
@@ -148,4 +148,4 @@ Exchange-side protective stops are placed for directional strategies (C2/C3) so 
 3. **Data access (still open from Gate 1):** allow `data.binance.vision`, `api.binance.com`, `fapi.binance.com`, `testnet.binancefuture.com`
    (+ `api.bybit.com`) in this cloud environment's network settings, or run research on your own machine?
 
-`[ ] Approved by owner — date: ____`
+`[x] Approved by owner — 2026-10-18`: architecture as written; manual transfer workflow accepted; owner is opening network access to the data hosts.
