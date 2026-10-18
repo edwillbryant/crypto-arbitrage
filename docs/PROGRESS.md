@@ -8,6 +8,7 @@
 | M0 Scaffold | ✅ done | `make check` = ruff + mypy + pytest; Bittrex scripts in `legacy/` |
 | M1 Data layer | 🟡 code done, **real data not yet ingested** | Blocked: exchange hosts unreachable from the build session |
 | M2 Research engine | ✅ done (on synthetic fixtures) | No strategy has been backtested on real data |
+| M3a Strategy code C1–C5 | ✅ done (offline) | Sweeps (M3b) need real data |
 | M5 RiskGate + kill switch | ✅ done | Moved ahead of M4 (owner decision) so the single hold-out run uses the production gate |
 
 ## M1 report (2026-10-18)
@@ -125,3 +126,38 @@
 - The OrderManager must honour `cancel_all`, send FLATTEN orders as reduce-only, and flatten exchange positions not covered by any target (orphans).
 - It must also build `Health` from the live feed, the reconciler, the clock check and the hedge-delta monitor.
 - The watchdog runs on a second host.
+
+## M3a report: strategy code (2026-10-18)
+
+**Built (test-first; failing tests committed in 2177da5):** every strategy is a pure function of its snapshot. Position state (hysteresis, trailing stops, entry and exit) is **replayed from the history in the snapshot** on every decision, never held in memory. Backtest and live behave the same, and a restart can't lose state. A test shows the replay converges whatever the window start.
+
+| Strategy | Rules (summary) | Decisions | Data | Variants (fixed in advance) |
+|---|---|---|---|---|
+| C1 `c1_carry` | Trailing mean of `n_periods` funding prints, annualised; enter ≥ `entry_apr`, exit < `exit_apr` (hysteresis); unwind if \|perp/spot−1\| > 1%; long spot / short perp 25% each as one hedge group; never reversed | hourly | funding, spot+perp 1h | 33 (entry 10/15/20/30% × exit 0/5/10% × n 3/9/21, exit < entry) |
+| C2 `c2_trend` | Donchian breakout of the prior `n` days; exit/flip on the opposite breakout or a `k_atr` × ATR trailing stop (ATR from before the bar); direction only, the sizer applies vol targeting | daily | perp 1d | 16 (n 20/50/100/200 × k 2/3/4/5) |
+| C3 `c3_cascade` | OI −`oi_drop` and return ≤ −`z`σ over `window_h`, funding > −0.05%/period; **enter on the first up-close after the cascade**; exit at 50% retracement, a further 0.5× drop, or `max_hold_h` | hourly | perp 1h, OI metrics, funding | 54 (oi 3/5/8% × z 2/3/4 × window 1/4h × hold 12/24/48h) |
+| C4 `c4_xarb` | **Analyzer only**, not a Strategy: counts bar-close gaps that beat 2 × (fee + slippage) + transfer cost. An explicit upper bound. Needs a second venue's data (not yet ingested). | — | 2 venues | n/a |
+| C5 `c5_seasonality` | Long BTC perp during a UTC hour window; **control, never live-eligible** (test-enforced) | hourly | clock only | 144 (start 0–23 × length 4/8 × all/weekdays/weekends) |
+
+**Total pre-registered variants: 247** (before ×3 cost multipliers). These are the N for each strategy's deflated Sharpe. A test pins the counts, so growing a grid shows up as a failing test in review.
+
+**Found while writing tests:** C3's original rule (enter on the first cascade bar, stop at 2 × pre-crash σ) was stopped out while the cascade was still running, the knife-catching failure the bear case warns about. It was changed before any data was seen to wait for confirmation and size the stop to the move. The spec has a dated change note.
+
+**Wiring check:** all four registered strategies run end-to-end through the engine and the production RiskGate on a synthetic store, and C1's spot and perp legs fill together as one episode.
+
+**Speed (synthetic, single core, 2020-01 → 2026-09):**
+
+| Strategy | Time per variant |
+|---|---|
+| C1 | ~2 min |
+| C2 | ~0.2 min |
+| C3 | ~4 min (after replacing `merge_asof` with a binary search, about 4× faster) |
+| C5 | ~0.3 min |
+
+The full M3 sweep is about 5 single-core hours across 3 cost multipliers, and variants run in parallel.
+
+**Still needed for M3b (real data):**
+- ingest, then the quality report
+- the sweeps on 2020–2024 only, with neighbour heatmaps and 2×/3× costs
+- your parameter-lock checkpoint
+- C4 needs a second venue's data source (Bybit public archive [UNVERIFIED]) before it can be evaluated

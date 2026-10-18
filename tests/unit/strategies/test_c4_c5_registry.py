@@ -3,10 +3,10 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from agent.strategies.base import Snapshot
 from agent.strategies.c4_xarb import analyze
 from agent.strategies.c5_seasonality import Seasonality, SeasonParams
 from agent.strategies.registry import REGISTRY, variants
-from agent.strategies.base import Snapshot
 
 MONDAY_03 = pd.Timestamp("2024-03-04 03:00", tz="UTC")
 SATURDAY_03 = pd.Timestamp("2024-03-09 03:00", tz="UTC")
