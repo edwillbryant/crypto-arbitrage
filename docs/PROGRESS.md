@@ -9,6 +9,7 @@
 | M1 Data layer | 🟡 code done, **real data not yet ingested** | Blocked: exchange hosts unreachable from the build session |
 | M2 Research engine | ✅ done (on synthetic fixtures) | No strategy has been backtested on real data |
 | M3a Strategy code C1–C5 | ✅ done (offline) | Sweeps (M3b) need real data |
+| M6a Execution (offline half) | ✅ done | Binance feed/broker + testnet suite (M6b) need network |
 | M5 RiskGate + kill switch | ✅ done | Moved ahead of M4 (owner decision) so the single hold-out run uses the production gate |
 
 ## M1 report (2026-10-18)
@@ -161,3 +162,54 @@ The full M3 sweep is about 5 single-core hours across 3 cost multipliers, and va
 - the sweeps on 2020–2024 only, with neighbour heatmaps and 2×/3× costs
 - your parameter-lock checkpoint
 - C4 needs a second venue's data source (Bybit public archive [UNVERIFIED]) before it can be evaluated
+
+## M6a report: execution, offline half (2026-10-18)
+
+**Built (test-first; failing tests committed in b3766c2):**
+- `execution/exchange_whitelist.py`: `SafeExchange` exposes 14 allow-listed ccxt methods. Tests run against the **real pinned ccxt 4.5.70 classes** and check:
+  - every allowed method exists
+  - every other method on `ccxt.binance` and `ccxt.binanceusdm` (> 2,000 each, including ~460 withdraw, transfer, deposit, convert, borrow and sub-account methods, plus raw endpoints) raises `PermissionError`
+  - unknown `create_order` params are refused
+
+  This is defence in depth only. The real control is API keys with withdrawals disabled.
+- `execution/order_manager.py`:
+  - quantities round toward zero, so rounding never adds exposure
+  - IOC limit orders are capped at mark ± 10 bps, with tick rounding never worse than the cap (a float edge case, 50,050.0/0.1, was found and fixed)
+  - market orders are used only to flatten
+  - any order that shrinks a perp position is reduce-only
+  - orphan positions are flattened
+  - carry pairs go spot first, then the perp sized to the actual spot fill; a short-filled hedge leg unwinds the excess
+  - client order ids are deterministic, so retries can't duplicate orders
+  - every exchange error or reject feeds the ledger's API-error halt and never crashes the cycle
+  - spot dust below the minimum notional is left in place, not retried into a reject-driven halt
+- `execution/paper.py`: IOC and market fills at the touch, up to the displayed size (partial fills); taker fees; reduce-only enforcement; spot oversell and overbuy refusal; idempotent client ids; funding accrual; state persisted atomically. Optimistic for size: no queue position and no impact beyond the touch.
+- `execution/reconciler.py`: compares exchange positions against our own fills. Any difference beyond half a step, or any resting order, means HALT. After a restart it adopts the exchange's state.
+- `execution/hedge.py`: hedge-group net delta > 2% of gross for > 30 s marks the group unhedged, and the gate flattens it.
+- `ops/log.py`: one JSONL line per cycle. Credential-like keys are redacted, and registered secret values are scrubbed from every string.
+- `ops/watchdog.py`: second-host logic. Silence over 60 s means cancel all and flatten **everything** (a change from the architecture, which said perps only; flattening only perps would leave a carry pair's spot leg naked). It acts once per outage, and one failed call doesn't stop the rest.
+- `live/loop.py`: one cycle runs feed → snapshot → strategy → sizer → health → RiskGate → OrderManager → broker → reconcile → log → heartbeat. A strategy exception means flat targets. An unreachable broker means HALT, with the last good equity kept so a missing reading doesn't create a fake drawdown.
+- `live/feed.py`: the `MarketFeed` interface, plus `StoreFeed` (point-in-time store with a synthetic book) for tests and replay.
+- `live/config.py` + `config/paper.yaml`: a strategy can be enabled only if it is live-eligible, has a matching **hold-out lock file** (M4), and has a recorded **owner approval** (M7). Today the list is empty and must stay that way.
+- CLI:
+  - `python -m agent run --mode paper --config config/paper.yaml` refuses: no approved strategies, and no live feed yet.
+  - `python -m agent run --mode paper --replay ...` runs stored history through the full live stack, labelled "not validated, not paper trading".
+  - `--mode live` doesn't exist.
+
+**Tests:** 268 offline. They include end-to-end loop tests:
+- a carry cycle trades both legs equally
+- the kill-switch flag flattens and stays locked
+- 5 API errors within 5 minutes HALT, and errors spaced hours apart don't
+- a manual trade outside the agent HALTs it as unreconciled
+- a stale book flattens
+- a strategy crash goes flat
+- an unreachable broker HALTs
+
+Coverage: `agent/risk` 100% branch; `agent/execution` + `live` + `ops` 97.8%. Both are enforced by `make check`.
+
+**Operational requirement found during review:** the agent must trade in a **dedicated Binance sub-account** holding only the capital you assign to it. On a shared account, the orphan rule would treat your other spot holdings (for example BNB kept for fees) as orphans and sell them. The live broker will also restrict positions to the trading universe, but the dedicated account is the real control.
+
+**M6b (needs network):**
+- Binance WebSocket feed (book ticker, klines, mark price/funding, sequence-gap and staleness tracking, clock-drift check against server time)
+- `BinanceBroker` over `SafeExchange`: positions limited to the universe, equity from the margin balance, margin ratio into `Health`, rules from market metadata
+- testnet integration suite: place/cancel/fill, WebSocket disconnect → stale → halt, 429 handling, full kill-switch flatten
+- watchdog transport (heartbeat push to the second host) and alerting

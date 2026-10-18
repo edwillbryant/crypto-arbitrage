@@ -36,8 +36,11 @@ def test_every_other_ccxt_method_is_refused(cls: type) -> None:
             getattr(safe, n)
 
 
-@pytest.mark.parametrize("name", ["withdraw", "transfer", "sapiPostAssetTransfer", "sapi_post_capital_withdraw_apply",
-                                  "create_sub_account", "borrow_margin", "fetch_deposit_address", "set_leverage"])  # fmt: skip
+MONEY_MOVERS = ["withdraw", "transfer", "sapiPostAssetTransfer", "sapi_post_capital_withdraw_apply",
+                "create_sub_account", "borrow_margin", "fetch_deposit_address", "set_leverage"]  # fmt: skip
+
+
+@pytest.mark.parametrize("name", MONEY_MOVERS)
 def test_named_money_movement_is_refused(name: str) -> None:
     with pytest.raises(PermissionError):
         getattr(SafeExchange(Recorder()), name)

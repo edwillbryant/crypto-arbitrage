@@ -1,0 +1,15 @@
+# Paper trading (M7). A strategy may be listed here ONLY after:
+#   1. its hold-out run (M4) produced a PASS verdict and a lock file, and
+#   2. the owner approved it for paper trading (M7).
+# The loader refuses any entry without a matching lock file and a recorded approval.
+#
+# Example entry (do not enable until both conditions hold):
+#   - name: c2_trend
+#     params: {n: 50, k_atr: 3.0}
+#     lock_file: research/holdout_locks/c2_trend.json
+#     approved_by: <owner>
+#     approved_on: <YYYY-MM-DD>
+initial_cash: 10000.0
+strategies: []
+state_dir: data/state/paper
+limits_file: config/limits.yaml

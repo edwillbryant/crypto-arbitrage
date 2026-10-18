@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pandas as pd
+
 from agent.data.datasets import Market
 
 
@@ -19,6 +21,11 @@ class Instrument:
     def key(self) -> str:
         return f"{self.market}:{self.symbol}"
 
+    @classmethod
+    def from_key(cls, key: str) -> Instrument:
+        market, symbol = key.split(":", 1)
+        return cls(symbol, Market(market))
+
 
 @dataclass(frozen=True)
 class Target:
@@ -31,3 +38,12 @@ class Target:
 
     def with_weight(self, weight: float) -> Target:
         return Target(self.instrument, weight, self.group, self.reason)
+
+
+@dataclass(frozen=True)
+class TopOfBook:
+    ts: pd.Timestamp
+    bid: float
+    bid_qty: float
+    ask: float
+    ask_qty: float

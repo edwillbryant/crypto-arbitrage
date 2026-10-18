@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
+import pandas as pd
+
 from agent.core.errors import AgentError
 from agent.core.types import Instrument, TopOfBook
 from agent.execution.paper import PaperBroker
 from agent.execution.types import Ack, Order, SymbolRules
-
-import pandas as pd
 
 T = pd.Timestamp("2024-03-01 10:00", tz="UTC")
 BTC_PERP = Instrument("BTCUSDT", "perp")
@@ -21,10 +23,12 @@ RULES = {BTC_PERP.key: SymbolRules(step=0.001, tick=0.1, min_notional=100.0),
 class Books:
     """Scripted top-of-book per instrument key."""
 
-    def __init__(self, mid: float = 50_000.0, spread: float = 1.0, qty: float = 100.0) -> None:
+    MIDS: ClassVar[dict[str, float]] = {BTC_PERP.key: 50_000.0, BTC_SPOT.key: 50_000.0, ETH_PERP.key: 2_000.0}
+
+    def __init__(self, spread: float = 1.0, qty: float = 100.0) -> None:
         self.quotes: dict[str, TopOfBook] = {}
         for k in RULES:
-            self.set(k, mid, spread, qty)
+            self.set(k, self.MIDS[k], spread, qty)
 
     def set(self, key: str, mid: float, spread: float = 1.0, qty: float = 100.0) -> None:
         self.quotes[key] = TopOfBook(T, mid - spread / 2, qty, mid + spread / 2, qty)

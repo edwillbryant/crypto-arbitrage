@@ -7,13 +7,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from agent.core.types import Instrument
 from agent.data.datasets import FUNDING, klines
 from agent.data.parse import parse_csv
 from agent.data.store import PITStore
+from agent.execution.hedge import HedgeMonitor
 from agent.execution.order_manager import OrderManager
 from agent.execution.paper import PaperBroker
 from agent.execution.reconciler import Reconciler
-from agent.execution.hedge import HedgeMonitor
 from agent.execution.types import Order, OrderType
 from agent.live.feed import StoreFeed
 from agent.live.loop import LiveLoop
@@ -90,18 +91,26 @@ def test_kill_switch_flattens_on_the_next_cycle(world) -> None:  # type: ignore[
 def test_repeated_api_errors_halt_trading(world) -> None:  # type: ignore[no-untyped-def]
     bad = FailingBroker(world["broker"], raise_on={"spot:BTCUSDT", "perp:BTCUSDT"})
     loop = _loop(world, broker=bad)
-    modes = [loop.step(T0 + i * H).mode for i in range(4)]
-    assert modes[-1] is Mode.HALT
+    m = pd.Timedelta(seconds=30)
+    # Each cycle the spot leg fails first, so the perp leg is never sent: one error per cycle.
+    modes = [loop.step(T0 + i * m).mode for i in range(6)]
+    assert modes[:5] == [Mode.NORMAL] * 5 and modes[5] is Mode.HALT  # 5 errors inside the window
     placed_before = len(bad.placed)
-    loop.step(T0 + 4 * H)
+    loop.step(T0 + 6 * m)
     assert len(bad.placed) == placed_before  # HALT: nothing sent
+
+
+def test_errors_spread_beyond_the_window_do_not_halt(world) -> None:  # type: ignore[no-untyped-def]
+    loop = _loop(world, broker=FailingBroker(world["broker"], raise_on={"spot:BTCUSDT", "perp:BTCUSDT"}))
+    assert {loop.step(T0 + i * H).mode for i in range(8)} == {Mode.NORMAL}
 
 
 def test_a_trade_made_outside_the_agent_halts_it(world) -> None:  # type: ignore[no-untyped-def]
     loop = _loop(world)
     loop.step(T0)
-    world["broker"].place(Order("manual", __import__("agent.core.types", fromlist=["Instrument"]).Instrument("BTCUSDT", "perp"),
-                                -0.05, OrderType.MARKET, None, False))  # fmt: skip
+    world["broker"].place(
+        Order("manual", Instrument("BTCUSDT", "perp"), -0.05, OrderType.MARKET, None, False)
+    )
     rep = loop.step(T0 + H)
     assert rep.mode is Mode.HALT and "unreconciled" in rep.triggers
 
@@ -125,3 +134,33 @@ def test_strategy_crash_fails_safe(world) -> None:  # type: ignore[no-untyped-de
     rep = loop.step(T0 + H)
     assert any("strategy error" in e for e in rep.events)
     assert world["broker"].positions() == {}  # targets default to flat
+
+
+class Unreachable:
+    """Wraps a broker; flip `down` to make every call fail like a lost connection."""
+
+    def __init__(self, inner) -> None:  # type: ignore[no-untyped-def]
+        self.inner, self.down = inner, False
+
+    def __getattr__(self, name: str):  # type: ignore[no-untyped-def]
+        attr = getattr(self.inner, name)
+        if not callable(attr):
+            return attr
+
+        def call(*a, **k):  # type: ignore[no-untyped-def]
+            if self.down:
+                raise ConnectionError("exchange unreachable")
+            return attr(*a, **k)
+
+        return call
+
+
+def test_unreachable_broker_halts_and_keeps_last_equity(world) -> None:  # type: ignore[no-untyped-def]
+    b = Unreachable(world["broker"])
+    loop = _loop(world, broker=b)
+    first = loop.step(T0)
+    b.down = True
+    rep = loop.step(T0 + H)
+    assert rep.mode is Mode.HALT and "unreconciled" in rep.triggers
+    assert rep.equity == first.equity  # no fake drawdown from a missing equity reading
+    assert any("exchange unreachable" in e for e in rep.events)

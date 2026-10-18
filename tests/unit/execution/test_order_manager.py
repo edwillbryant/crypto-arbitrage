@@ -4,10 +4,10 @@ import pytest
 
 from agent.core.types import Target
 from agent.execution.order_manager import OrderManager, client_order_id
-from agent.execution.types import OrderType
+from agent.execution.types import Order, OrderType
 from agent.risk.exposure import Decision, Verdict
 from agent.risk.gate import GateResult, Mode
-from tests.unit.execution.fakes import BTC_PERP, BTC_SPOT, ETH_PERP, T, Books, FailingBroker, paper
+from tests.unit.execution.fakes import BTC_PERP, BTC_SPOT, ETH_PERP, Books, FailingBroker, T, paper
 
 MARKS = {BTC_PERP.key: 50_000.0, BTC_SPOT.key: 50_000.0, ETH_PERP.key: 2_000.0}
 
@@ -82,8 +82,8 @@ def test_flatten_uses_reduce_only_market_orders() -> None:
         marks=MARKS,
         cycle_id="a",
     )
-    rep = _om(b).execute(_result(Target(BTC_PERP, 0.0), Target(ETH_PERP, 0.0), mode=Mode.FLATTEN, cancel=True),
-                         now=T, equity=10_000.0, marks=MARKS, cycle_id="k")  # fmt: skip
+    flat = _result(Target(BTC_PERP, 0.0), Target(ETH_PERP, 0.0), mode=Mode.FLATTEN, cancel=True)
+    rep = _om(b).execute(flat, now=T, equity=10_000.0, marks=MARKS, cycle_id="k")
     assert {(o.type, o.reduce_only) for o in rep.orders} == {(OrderType.MARKET, True)}
     assert b.positions() == {}
 
@@ -113,7 +113,7 @@ def test_failed_hedge_leg_unwinds_the_first_leg() -> None:
 def test_api_errors_are_reported_not_raised() -> None:
     errors: list[tuple[str, str]] = []
     b = FailingBroker(paper(), raise_on={BTC_PERP.key})
-    rep = _om(b, errors).execute(_result(Target(BTC_PERP, 0.1), Target(ETH_PERP, 0.1)),
+    _om(b, errors).execute(_result(Target(BTC_PERP, 0.1), Target(ETH_PERP, 0.1)),
                                  now=T, equity=10_000.0, marks=MARKS, cycle_id="e")  # fmt: skip
     assert errors[0][0] == "error"
     assert ETH_PERP.key in b.positions()  # one failure doesn't stop the other instruments
@@ -133,3 +133,19 @@ def test_client_ids_are_deterministic_unique_and_exchange_safe() -> None:
 def test_missing_mark_skips_the_instrument() -> None:
     rep = _om(paper()).execute(_result(Target(BTC_PERP, 0.1)), now=T, equity=10_000.0, marks={}, cycle_id="m")
     assert rep.orders == [] and "no mark" in rep.events[0]
+
+
+def test_tick_rounding_never_worsens_the_cap() -> None:
+    from agent.execution.order_manager import round_to_tick  # noqa: PLC0415
+
+    assert round_to_tick(50_050.0, 0.1, up=False) == 50_050.0
+    assert round_to_tick(50_050.06, 0.1, up=False) == 50_050.0  # buy cap rounds down
+    assert round_to_tick(49_949.94, 0.1, up=True) == 49_950.0  # sell cap rounds up
+
+
+def test_spot_dust_is_not_retried_forever() -> None:
+    """Selling $2 of spot dust would be rejected every cycle and halt the agent via the reject limit."""
+    b = paper()
+    b.place(Order("dust", BTC_SPOT, 0.00004, OrderType.LIMIT_IOC, 60_000.0, False))  # $2 < $5 minimum
+    rep = _om(b).execute(_result(Target(BTC_SPOT, 0.0)), now=T, equity=10_000.0, marks=MARKS, cycle_id="d")
+    assert rep.orders == [] and "dust" in rep.events[0]

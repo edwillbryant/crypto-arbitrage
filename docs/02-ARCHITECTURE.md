@@ -43,7 +43,7 @@ against Binance testnet in Phase 4. Nothing in the design should assume they're 
                 └──────────────────────────────────────────────────────────────────────────────────┘
                          ▲ heartbeat (every 5 s)
  second host ──▶ Watchdog (separate trade-only key): primary silent > 60 s → cancel all orders,
-                 reduce-only flatten perps, page owner.
+                 flatten ALL positions (perps reduce-only, spot sold), page owner.  [changed 2026-10-18, see §6 note]
 ```
 
 ---
@@ -131,6 +131,9 @@ this, but they have eligibility requirements [UNVERIFIED], so they're out of sco
 | Collateral stablecoin depeg | USDT/USDC price feed | > 0.5% → halt entries. > 2% → flatten. |
 | Bad config | pydantic validation | Refuse to start |
 | Kill switch | Any of 3 inputs | Cancel all → reduce-only flatten → lock |
+
+**Change note (2026-10-18, M6):** the watchdog flattens *all* positions, not only perps. Flattening only the perp leg of a
+carry pair would leave a naked spot long, which is more risk, not less.
 
 Exchange-side protective stops are placed for directional strategies (C2/C3) so that a dead bot or a dead host still has its losses capped.
 
