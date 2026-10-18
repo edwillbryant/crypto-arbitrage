@@ -49,6 +49,7 @@ class IngestReport:
     dataset: str
     symbol: str
     rows_written: int = 0
+    duplicates_dropped: int = 0
     files_ok: list[ArchiveFile] = field(default_factory=list)
     missing: list[ArchiveFile] = field(default_factory=list)
     unverified: list[ArchiveFile] = field(default_factory=list)
@@ -164,6 +165,8 @@ def ingest(
             report.unverified.append(f)
             continue
         verify_checksum(zip_bytes, checksum, f.path.rsplit("/", 1)[1])
-        report.rows_written += store.write(dataset, symbol, parse_csv(dataset, extract_csv(zip_bytes)))
+        frame = parse_csv(dataset, extract_csv(zip_bytes))
+        report.duplicates_dropped += frame.attrs.get("exact_duplicates_dropped", 0)
+        report.rows_written += store.write(dataset, symbol, frame)
         report.files_ok.append(f)
     return report

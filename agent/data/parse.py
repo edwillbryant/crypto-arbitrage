@@ -57,7 +57,15 @@ def _finish(dataset: Dataset, key_time: pd.Series, body: pd.DataFrame) -> pd.Dat
     out["available_at"] = dataset.availability(out["key_time"]).astype(TS_DTYPE)
     for col in dataset.columns:
         out[col] = body[col].to_numpy()
-    return out.sort_values("key_time", kind="stable").reset_index(drop=True)
+    # Some archive files repeat rows verbatim (e.g. BTCUSDT metrics 2020-09-01). Identical repeats carry no
+    # information and are dropped; the same timestamp with DIFFERENT values is ambiguous and is refused.
+    before = len(out)
+    out = out.drop_duplicates()
+    if out["key_time"].duplicated().any():
+        raise DataIntegrityError(f"{dataset.name}: conflicting duplicate rows for the same key_time")
+    out = out.sort_values("key_time", kind="stable").reset_index(drop=True)
+    out.attrs["exact_duplicates_dropped"] = before - len(out)
+    return out
 
 
 def parse_csv(dataset: Dataset, raw: bytes) -> pd.DataFrame:

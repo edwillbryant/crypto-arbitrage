@@ -65,3 +65,19 @@ def test_unsorted_input_is_sorted() -> None:
     raw = kline_csv("2024-01-01", 4).decode().strip().split("\n")
     shuffled = "\n".join([raw[2], raw[0], raw[3], raw[1]]).encode()
     assert parse_csv(H1, shuffled)["key_time"].is_monotonic_increasing
+
+
+def test_exact_duplicate_rows_are_dropped_and_counted() -> None:
+    """Binance's 2020-09-01 BTCUSDT metrics file lists every row twice, identically."""
+    raw = metrics_csv("2024-01-01", 3).decode().strip().split("\n")
+    doubled = "\n".join([raw[0], *[r for r in raw[1:] for _ in (0, 1)]]).encode()
+    df = parse_csv(METRICS, doubled)
+    assert len(df) == 3 and df["key_time"].is_unique
+    assert df.attrs["exact_duplicates_dropped"] == 3
+
+
+def test_conflicting_duplicates_still_fail() -> None:
+    raw = metrics_csv("2024-01-01", 2).decode().strip().split("\n")
+    clash = raw[1].replace(",80000,", ",99999,")
+    with pytest.raises(DataIntegrityError, match="conflicting"):
+        parse_csv(METRICS, "\n".join([*raw, clash]).encode())
