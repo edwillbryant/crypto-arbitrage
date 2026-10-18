@@ -1,6 +1,6 @@
 # Phase 1 — SPEC: 24/7 Autonomous Crypto Trading Agent
 
-**Status:** DRAFT, awaiting owner approval (Gate 1 of 6: spec → architecture → plan → test-first build → review → ship)
+**Status:** APPROVED 2026-10-18 (Gate 1 of 6: spec → architecture → plan → test-first build → review → ship)
 **Date:** 2026-10-18
 **Hard rule for this document:** no backtest number appears here. Every Sharpe, drawdown and trade-count cell
 says `NOT RUN` until the validation harness (Phase 4) produces it from real data. Assumptions are labelled `[ASSUMPTION]`,
@@ -213,4 +213,5 @@ Please decide:
 3. **Candidate set:** keep C1–C5 in, C6 deferred?
 4. **Data access:** allow the exchange data hosts in this cloud environment's network settings, or run research on your own machine.
 
-`[ ] Approved by owner — date: ____`
+`[x] Approved by owner — 2026-10-18`: Option A (non-US; Binance primary, Bybit standby), §4 default limits, candidates C1–C5 (C6 deferred).
+Open item: data access (Q4) not yet answered.
