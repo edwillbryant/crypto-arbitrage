@@ -51,7 +51,8 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
             rep = ingest(store, dataset, symbol, args.start, args.end, raw_dir=args.raw)
             print(
                 f"{dataset.name:<24} {symbol:<8} files={len(rep.files_ok):>4} rows+={rep.rows_written:>9,} "
-                f"missing={len(rep.missing)} unverified={len(rep.unverified)} dup_rows_dropped={rep.duplicates_dropped}"
+                f"missing={len(rep.missing)} unverified={len(rep.unverified)} "
+                f"dup_rows_dropped={rep.duplicates_dropped}"
             )
             for f in rep.missing + rep.unverified:
                 print(f"    not ingested: {f.path}")
