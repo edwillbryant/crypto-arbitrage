@@ -1,6 +1,6 @@
 # Phase 3 — PLAN
 
-**Status:** DRAFT, awaiting owner approval (Gate 3 of 6)
+**Status:** APPROVED 2026-10-18 (Gate 3 of 6)
 **Inputs:** `01-SPEC.md` (approved), `02-ARCHITECTURE.md` (approved)
 **Date:** 2026-10-18
 
@@ -119,4 +119,4 @@ python -m agent unlock --confirm
 2. Network: the data hosts **still aren't reachable from this session** (checked just now). Changes to the environment may only apply to a new session.
    I can start M0 and M1 steps 1–3 now, and M1 steps 4–5 once the hosts respond.
 
-`[ ] Approved by owner — date: ____`
+`[x] Approved by owner — 2026-10-18`: plan and both owner checkpoints approved; start M0 + M1.

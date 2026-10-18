@@ -1,9 +1,14 @@
-# crypto-arbitrage
+# crypto-arbitrage → autonomous trading agent
 
-Some simple tools used for a blog about cryptocurrency arbitrage.
+A 24/7 crypto trading agent (Binance USDⓈ-M perps + spot, BTC/ETH) that trades only strategies that pass
+chronological hold-out validation, with hard risk limits enforced in code and no ability to move funds.
 
-## Dependencies:
+Status: **under construction**. Nothing here trades yet, and no strategy has been validated.
 
-CoinGecko: https://github.com/man-c/pycoingecko
+- Spec, architecture and plan (all approved): `docs/01-SPEC.md`, `docs/02-ARCHITECTURE.md`, `docs/03-PLAN.md`
+- Old Bittrex arbitrage scripts (blog material, Bittrex has since shut down): `legacy/`
 
-Bittrex-Python-API: https://github.com/ericsomdahl/python-bittrex
+```bash
+make install   # pip install -e ".[dev]"
+make check     # ruff + mypy + pytest
+```
