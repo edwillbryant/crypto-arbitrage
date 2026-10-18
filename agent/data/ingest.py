@@ -9,6 +9,7 @@ from __future__ import annotations
 import calendar
 import datetime as dt
 import hashlib
+import http.client
 import io
 import time
 import urllib.error
@@ -120,7 +121,8 @@ def http_fetch(url: str, *, timeout: float = 30.0, retries: int = 4) -> bytes:
                 raise NotFound(url) from e
             if attempt == retries:
                 raise
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException):
+            # Dropped connections (RemoteDisconnected, resets) are transient; retry them like timeouts.
             if attempt == retries:
                 raise
         time.sleep(2 ** (attempt + 1))

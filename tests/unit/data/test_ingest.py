@@ -138,3 +138,36 @@ def test_raw_cache_avoids_refetch(store: PITStore, tmp_path) -> None:  # type: i
     n = len(arc.calls)
     ingest(store, H1, "BTCUSDT", dt.date(2024, 1, 1), dt.date(2024, 1, 1), fetch=arc, raw_dir=raw)
     assert len(arc.calls) == n
+
+
+def test_http_fetch_retries_dropped_connections(monkeypatch: pytest.MonkeyPatch) -> None:
+    """data.binance.vision occasionally closes connections mid-request (http.client.RemoteDisconnected)."""
+    import http.client  # noqa: PLC0415
+    import io as _io  # noqa: PLC0415
+
+    from agent.data import ingest as mod  # noqa: PLC0415
+
+    calls = {"n": 0}
+
+    def flaky(url: str, timeout: float) -> _io.BytesIO:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise http.client.RemoteDisconnected("Remote end closed connection without response")
+        return _io.BytesIO(b"payload")
+
+    monkeypatch.setattr(mod.urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(mod.time, "sleep", lambda s: None)
+    assert mod.http_fetch("https://data.binance.vision/x") == b"payload"
+    assert calls["n"] == 3
+
+
+def test_http_fetch_gives_up_after_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    from agent.data import ingest as mod  # noqa: PLC0415
+
+    def down(url: str, timeout: float) -> None:
+        raise ConnectionResetError("reset")
+
+    monkeypatch.setattr(mod.urllib.request, "urlopen", down)
+    monkeypatch.setattr(mod.time, "sleep", lambda s: None)
+    with pytest.raises(ConnectionResetError):
+        mod.http_fetch("https://data.binance.vision/x", retries=2)
