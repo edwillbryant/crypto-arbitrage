@@ -20,7 +20,12 @@ END = pd.Timestamp("2030-01-01", tz="UTC")
     [
         (klines("spot", "1d"), "monthly", "2024-01", "spot/monthly/klines/BTCUSDT/1d/BTCUSDT-1d-2024-01.zip"),
         (H1, "daily", "2024-01-05", "futures/um/daily/klines/BTCUSDT/1h/BTCUSDT-1h-2024-01-05.zip"),
-        (FUNDING, "monthly", "2024-01", "futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2024-01.zip"),
+        (
+            FUNDING,
+            "monthly",
+            "2024-01",
+            "futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2024-01.zip",
+        ),
         (
             PREMIUM_1H,
             "monthly",

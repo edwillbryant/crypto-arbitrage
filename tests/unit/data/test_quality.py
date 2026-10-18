@@ -39,6 +39,17 @@ def test_ohlc_inconsistency_fails() -> None:
     assert "ohlc_consistency" in _checks(r, Severity.ERROR)
 
 
+def test_close_time_must_match_interval() -> None:
+    b = _bars()
+    b.loc[7, "close_time"] = b.loc[7, "key_time"] + pd.Timedelta(minutes=30)
+    assert "close_time_mismatch" in _checks(quality_report(H1, "BTCUSDT", b), Severity.ERROR)
+
+
+def test_microsecond_close_times_are_consistent() -> None:
+    b = parse_csv(H1, kline_csv("2025-01-01", 50, micros=True))
+    assert quality_report(H1, "BTCUSDT", b).passed
+
+
 def test_non_positive_price_fails() -> None:
     b = _bars()
     b.loc[10, ["open", "low"]] = 0.0

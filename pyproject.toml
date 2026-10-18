@@ -29,7 +29,7 @@ include = ["agent*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --strict-markers"
+addopts = "-q --strict-markers -m \"not integration\""
 markers = [
   "integration: needs network access to exchange hosts (opt-in: -m integration)",
 ]

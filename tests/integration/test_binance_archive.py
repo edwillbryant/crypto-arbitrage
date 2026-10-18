@@ -1,4 +1,4 @@
-"""Verifies the archive-format assumptions against the real data.binance.vision. Opt-in: pytest -m integration."""
+"""Checks archive-format assumptions against the real data.binance.vision (opt-in: -m integration)."""
 
 from __future__ import annotations
 

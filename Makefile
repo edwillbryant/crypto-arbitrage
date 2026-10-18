@@ -13,6 +13,6 @@ types:
 	$(PY) -m mypy
 
 test:
-	$(PY) -m pytest -m "not integration"
+	$(PY) -m pytest
 
 check: lint types test
