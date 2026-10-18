@@ -87,7 +87,10 @@ def parse_csv(dataset: Dataset, raw: bytes) -> pd.DataFrame:
                     "rate": df["last_funding_rate"].astype("float64"),
                 }
             )
-            return _finish(dataset, epoch_to_utc(df["calc_time"]), body)
+            # Settlement happens on the hour, but ~45% of archive prints are stamped 1-47 ms late. Left as is,
+            # a 16:00:00.002 print would be charged to the position opened BY the 16:00 decision.
+            settled = epoch_to_utc(df["calc_time"]).dt.round("min")
+            return _finish(dataset, settled, body)
         if dataset.kind is Kind.METRICS:
             key = pd.to_datetime(df["create_time"], utc=True, format="%Y-%m-%d %H:%M:%S")
             return _finish(dataset, key, df.astype({c: "float64" for c in dataset.columns}))

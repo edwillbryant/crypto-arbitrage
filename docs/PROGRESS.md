@@ -6,7 +6,7 @@
 | Gate 2 Architecture | ✅ approved 2026-10-18 | Manual wallet-transfer workflow accepted |
 | Gate 3 Plan | ✅ approved 2026-10-18 | |
 | M0 Scaffold | ✅ done | `make check` = ruff + mypy + pytest; Bittrex scripts in `legacy/` |
-| M1 Data layer | 🟡 code done, **real data not yet ingested** | Blocked: exchange hosts unreachable from the build session |
+| M1 Data layer | ✅ done: real data ingested and quality-checked | 16/18 PASS (premium index FAIL, unused); see `docs/data_review.md`, one classifier change awaiting owner review |
 | M2 Research engine | ✅ done (on synthetic fixtures) | No strategy has been backtested on real data |
 | M3a Strategy code C1–C5 | ✅ done (offline) | Sweeps (M3b) need real data |
 | M6a Execution (offline half) | ✅ done | Binance feed/broker + testnet suite (M6b) need network |

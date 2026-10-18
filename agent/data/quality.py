@@ -99,11 +99,13 @@ def quality_report(
         o, h, lo, c = (df[x] for x in ("open", "high", "low", "close"))
         bad = (h < np.maximum(o, c)) | (lo > np.minimum(o, c)) | (h < lo)
         _flag(issues, Severity.ERROR, "ohlc_consistency", bad, key)
-        # Binance stamps close_time 1 ms (1 µs in microsecond-era files) before the next bar opens.
+        # Binance stamps close_time 1 ms (1 µs in microsecond-era files) before the next bar opens. A bar that
+        # closes EARLY was cut short by an exchange halt (or is a zero-volume placeholder after one): its prices
+        # are real but cover less time, so it is a warning. A bar claiming to outlast its interval is corrupt.
         span = df["close_time"] - key
         length = dataset.bar_length
-        wrong_span = (span >= length) | (span < length - pd.Timedelta(milliseconds=1))
-        _flag(issues, Severity.ERROR, "close_time_mismatch", wrong_span, key)
+        _flag(issues, Severity.ERROR, "close_time_mismatch", span >= length, key)
+        _flag(issues, Severity.WARN, "truncated_bar", span < length - pd.Timedelta(milliseconds=1), key)
         if dataset.kind is Kind.KLINES:  # premium index is a spread and may be zero or negative
             _flag(
                 issues,
