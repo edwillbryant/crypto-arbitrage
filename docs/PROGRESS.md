@@ -7,6 +7,7 @@
 | Gate 3 Plan | ✅ approved 2026-10-18 | |
 | M0 Scaffold | ✅ done | `make check` = ruff + mypy + pytest; Bittrex scripts in `legacy/` |
 | M1 Data layer | 🟡 code done, **real data not yet ingested** | Blocked: exchange hosts unreachable from the build session |
+| M2 Research engine | ✅ done (on synthetic fixtures) | No strategy has been backtested on real data |
 
 ## M1 report (2026-10-18)
 
@@ -30,3 +31,35 @@
 - Metrics publication lag of 5 min is a guess. It will be measured during live collection.
 - Which archive frequencies exist per dataset, header presence, and the 2025 switch to µs timestamps in spot data are all checked by the integration tests, not assumed.
 - Binance's OI metrics history starts later than 2020 [UNVERIFIED], so C3 may have a shorter sample than the other strategies.
+
+## M2 report (2026-10-18)
+
+**Built (test-first; failing tests committed in 8018dc8 before the implementation):**
+- `agent/research/engine.py`: event-driven backtester. At each decision time t:
+  - charge funding settled in (prev, t] on the position held over that interval (longs pay when the rate is positive)
+  - mark at the last close available at t
+  - hand the strategy a point-in-time snapshot
+  - run sizer, then gate
+  - fill at the open of the bar starting at t, plus costs. That open is the only field read from a bar not yet closed, and the docstring says so.
+  - Refusals:
+    - a perp backtest with no funding data (it would be silently optimistic)
+    - spot shorts
+    - unaligned start or end
+    - a sizer whose bar differs from the execution bar
+  - Missing fill bars and stale marks become logged events, not fills.
+  - Every decision (raw → sized → final weight, verdict and rule) is kept in `result.decisions`.
+- `agent/research/costs.py`: taker fee plus slippage on every fill, with an exact cost multiplier for the 2×/3× stress tests. Default fees are [ASSUMPTION] until checked against Binance's live fee page.
+- `agent/sizing/voltarget.py`: volatility targeting at 10% annualised. The budget is split across active directional positions, which is conservative under correlation, and capped at 25% per instrument. Hedged groups pass through. No history means no position.
+- `agent/risk/exposure.py`: the exposure part of the RiskGate. Per-instrument cap, gross cap, spot-short refusal, and hedge groups scaled as one unit (never one leg). A property test checks that limits always hold and that the gate never increases risk.
+- `agent/research/metrics.py`:
+  - Sharpe, max drawdown, CAGR, volatility, win rate, profit factor, trade count (round-trip episodes, with hedge groups counted as one trade), exposure, turnover, fees, slippage, funding, and cost share of gross PnL
+  - plus the DSR inputs: per-period SR, n_obs, skew, kurtosis
+- `agent/research/dsr.py`: PSR and DSR, pinned to the Bailey & López de Prado (2014) worked example (SR₀ = 0.1132/day, DSR = 0.9004, matching with 250 days/yr).
+- `agent/research/registry.py`: append-only, hash-chained JSONL trial registry recording git commit and dirty flag. Edits, reordering and deletions are detected; hold-out records are refused (they go through the M4 lock workflow).
+- `agent/research/sweep.py`: parameter grids and neighbour statistics for the "no lone peaks" filter.
+
+**Tests:** 105 offline tests pass (`make check` clean). Engine accounting is checked against hand-computed equity paths, fees and slippage, funding sign and timing, round-trip episodes, and sign flips. At engine level, leakage tests check that snapshots only hold available rows, that future-poisoning changes nothing before the cut, and that a strategy can't mutate the data feed.
+
+**Performance:** about 8.6 s per simulated year of hourly decisions (synthetic data), so about 1 min for the 2020–2026 range. Daily strategies take 1/24 of the steps.
+
+**Recommendation for the plan:** run M5 (full RiskGate) **before** M4 (hold-out). The hold-out result should then include the production daily-loss and drawdown halts, not just exposure limits. Doing it the other way means re-running the hold-out, and the hold-out may only be run once.

@@ -36,7 +36,7 @@ class ScriptedStrategy:
     seen: list[Snapshot] = field(default_factory=list)
 
     def requests(self) -> list[DataRequest]:
-        return [DataRequest(H1, "BTCUSDT", pd.Timedelta("1D"))]
+        return [DataRequest(H1, "BTCUSDT", pd.Timedelta(days=1))]
 
     def instruments(self) -> list[Instrument]:
         return [BTC_PERP]

@@ -21,7 +21,15 @@ class Kind(StrEnum):
 
 
 BAR_KINDS = frozenset({Kind.KLINES, Kind.PREMIUM})
-INTERVALS = ("1m", "5m", "15m", "1h", "4h", "1d")
+# Binance interval names -> durations. Explicit, because pandas is deprecating strings like "1d".
+INTERVALS: dict[str, pd.Timedelta] = {
+    "1m": pd.Timedelta(minutes=1),
+    "5m": pd.Timedelta(minutes=5),
+    "15m": pd.Timedelta(minutes=15),
+    "1h": pd.Timedelta(hours=1),
+    "4h": pd.Timedelta(hours=4),
+    "1d": pd.Timedelta(days=1),
+}
 
 BAR_COLUMNS = ("open", "high", "low", "close", "volume", "quote_volume", "trades",
                "taker_buy_volume", "taker_buy_quote_volume", "close_time")  # fmt: skip
@@ -46,7 +54,7 @@ class Dataset:
         object.__setattr__(self, "kind", Kind(self.kind))
         if self.kind in BAR_KINDS:
             if self.interval not in INTERVALS:
-                raise ValueError(f"{self.kind} needs an interval in {INTERVALS}, got {self.interval!r}")
+                raise ValueError(f"{self.kind} needs an interval in {list(INTERVALS)}, got {self.interval!r}")
         elif self.interval is not None:
             raise ValueError(f"{self.kind} takes no interval")
         if self.kind is not Kind.KLINES and self.market is not Market.PERP:
@@ -64,7 +72,7 @@ class Dataset:
     def bar_length(self) -> pd.Timedelta:
         if not self.is_bars or self.interval is None:
             raise ValueError(f"{self.name} is not a bar dataset")
-        return pd.Timedelta(self.interval)
+        return INTERVALS[self.interval]
 
     @property
     def cadence(self) -> pd.Timedelta | None:

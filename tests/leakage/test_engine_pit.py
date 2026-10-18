@@ -30,7 +30,7 @@ class Momentum(ScriptedStrategy):
 
 
 def _run(store: PITStore, strat: ScriptedStrategy, end_h: int) -> BacktestResult:
-    cfg = BacktestConfig(start=T0 + 3 * H, end=T0 + end_h * H, min_trade_weight=0.0)
+    cfg = BacktestConfig(start=T0 + 3 * H, end=T0 + end_h * H, min_trade_weight=0.0, require_funding=False)
     return run_backtest(strat, store, cfg, sizer=PassThroughSizer(), gate=ExposureGate(), costs=CostModel())
 
 
@@ -63,3 +63,20 @@ def test_future_poisoning_changes_nothing_before_the_cut(store: PITStore, tmp_pa
     fb = rb.fills[rb.fills["time"] < cut].reset_index(drop=True)
     assert len(fa) > 5
     pd.testing.assert_frame_equal(fa, fb)
+
+
+class Vandal(ScriptedStrategy):
+    """Overwrites every snapshot it receives; later snapshots must be unaffected."""
+
+    def decide(self, snap: Snapshot) -> list[Target]:
+        df = snap.get(H1, "BTCUSDT")
+        self.seen.append(snap)
+        if len(df):
+            assert (df["close"] > 0).all(), "a previous step's mutation leaked into this snapshot"
+            df.loc[:, "close"] = -1.0
+        return [Target(BTC_PERP, 0.0)]
+
+
+def test_strategies_cannot_mutate_the_feed(store: PITStore) -> None:
+    store.write(H1, "BTCUSDT", parse_csv(H1, kline_csv("2024-01-01", 50)))
+    _run(store, Vandal(lambda t: 0.0), 40)

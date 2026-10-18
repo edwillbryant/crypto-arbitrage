@@ -12,6 +12,8 @@ import zipfile
 import numpy as np
 import pandas as pd
 
+from agent.data.datasets import INTERVALS
+
 KLINE_HEADER = (
     "open_time,open,high,low,close,volume,close_time,quote_volume,count,"
     "taker_buy_volume,taker_buy_quote_volume,ignore"
@@ -30,7 +32,7 @@ def kline_csv(
 ) -> bytes:
     """Random-walk klines in the data.binance.vision CSV layout."""
     rng = np.random.default_rng(seed)
-    step = pd.Timedelta(interval)
+    step = INTERVALS[interval]
     t0 = pd.Timestamp(start, tz="UTC")
     scale = 1000 if micros else 1
     lines = [KLINE_HEADER] if header else []
@@ -86,7 +88,7 @@ def checksum_text(zip_bytes: bytes, filename: str) -> bytes:
 
 def kline_csv_from_prices(start: str, interval: str, opens: list[float], closes: list[float]) -> bytes:
     """Deterministic klines with exact open/close prices (high/low bracket them)."""
-    step = pd.Timedelta(interval)
+    step = INTERVALS[interval]
     t0 = pd.Timestamp(start, tz="UTC")
     lines = []
     for i, (o, c) in enumerate(zip(opens, closes, strict=True)):

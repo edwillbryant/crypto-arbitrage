@@ -22,6 +22,7 @@ OPEN_GATE = ExposureGate(max_weight=10.0, max_gross=10.0)  # test-only: wide lim
 
 
 def _run(store: PITStore, strat: ScriptedStrategy, hours: int, costs: CostModel | None = None, **kw):  # type: ignore[no-untyped-def]
+    kw = {"require_funding": False, **kw}  # accounting fixtures carry no funding unless the test adds it
     cfg = BacktestConfig(start=T0 + H, end=T0 + hours * H, initial_equity=1000.0, min_trade_weight=0.0, **kw)
     return run_backtest(
         strat, store, cfg, sizer=PassThroughSizer(), gate=OPEN_GATE, costs=costs or CostModel.zero()
@@ -67,12 +68,18 @@ def test_funding_paid_by_longs_only_when_held_at_settlement(store: PITStore) -> 
     put_funding(store, 4, rate=0.001)  # settlements at 00, 08, 16, 24h
     # long from 1h to 8h exactly: position opened at 1h, closed by the decision at 8h.
     # The 08:00 settlement happens before the 8h fill, so it IS paid: 10 * 100 * 0.001 = 1.0
-    res = _run(store, ScriptedStrategy(lambda t: 1.0 if t < T0 + 8 * H else 0.0), 20)
+    res = _run(store, ScriptedStrategy(lambda t: 1.0 if t < T0 + 8 * H else 0.0), 20, require_funding=True)
     assert res.funding["amount"].sum() == pytest.approx(-1.0)
     assert res.equity.iloc[-1] == pytest.approx(999.0)
     # short over the same window receives it
     res_short = _run(store, ScriptedStrategy(lambda t: -1.0 if t < T0 + 8 * H else 0.0), 20)
     assert res_short.equity.iloc[-1] == pytest.approx(1001.0)
+
+
+def test_perp_backtest_without_funding_data_is_refused(store: PITStore) -> None:
+    put_prices(store, [100.0] * 5, [100.0] * 5)
+    with pytest.raises(ValueError, match="funding"):
+        _run(store, ScriptedStrategy(lambda t: 1.0), 4, require_funding=True)
 
 
 def test_missing_fill_bar_means_no_fill(store: PITStore) -> None:

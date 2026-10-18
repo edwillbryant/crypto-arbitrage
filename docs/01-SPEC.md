@@ -106,7 +106,7 @@ funding paid/received; borrow costs where applicable. Every result also reported
 - Works on both BTC and ETH with the same parameters (or is explicitly single-asset with a reason).
 - No single trade/month contributes > 25% of total PnL.
 
-**Trial registry:** every backtest run is appended to `research/trials.parquet` (strategy, params, data range,
+**Trial registry:** every backtest run is appended to `research/trials.jsonl` (strategy, params, data range,
 cost multiplier, git hash, metrics). It is append-only and feeds the DSR correction. Metrics reported per run:
 Sharpe (annualised, net), max drawdown, win rate, profit factor, trade count, exposure time, turnover, cost share of gross PnL.
 

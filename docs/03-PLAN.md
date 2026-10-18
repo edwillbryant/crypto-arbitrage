@@ -28,7 +28,7 @@ agent/
   research/    engine.py costs.py metrics.py sweep.py walkforward.py dsr.py registry.py report.py
   ops/         log.py metrics.py watchdog.py alerts.py
 config/        limits.yaml paper.yaml research.yaml
-research/      trials.parquet (append-only)  holdout_locks/ (frozen params + git hash, one file per strategy)
+research/      trials.jsonl (append-only, hash-chained)  holdout_locks/ (frozen params + git hash, one file per strategy)
 data/          (gitignored) parquet store
 tests/         unit/ property/ leakage/ integration/ fixtures/
 legacy/        old Bittrex scripts
@@ -44,7 +44,7 @@ docs/          01-SPEC … 06-SHIP
 | **M0** | Scaffold | `pyproject`, CI-style `make check` (ruff + mypy + pytest) passes on an empty suite; legacy moved | No |
 | **M1** | **Data layer** (first module) | Ingest BTCUSDT/ETHUSDT spot + perp 1m/1h/1d klines, funding, premium index, OI metrics (2020-01 → 2026-09) with checksum verification; PIT store; quality report on the full range committed to `docs/data_quality.md` | **Yes** |
 | **M2** | Research engine + cost model | Engine replays the PIT store through Strategy → Sizer → RiskGate → SimBroker. Metrics module matches hand-computed values on fixtures. DSR matches the worked example in Bailey & López de Prado (2014). | No (fixtures) |
-| **M3** | **Strategies + sweeps on train/validation** ⛳ owner checkpoint | C1–C5 implemented; parameter grids from the spec swept on 2020–2024 only; every run in `trials.parquet`; neighbourhood heatmaps; cost 1×/2×/3×. You see the results and approve which parameters get **locked** for hold-out. | Yes |
+| **M3** | **Strategies + sweeps on train/validation** ⛳ owner checkpoint | C1–C5 implemented; parameter grids from the spec swept on 2020–2024 only; every run in `trials.jsonl`; neighbourhood heatmaps; cost 1×/2×/3×. You see the results and approve which parameters get **locked** for hold-out. | Yes |
 | **M4** | Hold-out run | For each strategy: lock file committed (params + git hash) **before** a single hold-out run; results + DSR + bootstrap CIs; comparison table in the spec filled with real numbers; verdicts PASS / REJECT / INSUFFICIENT EVIDENCE | Yes |
 | **M5** | RiskGate + kill switch | Full gate test suite green (see §3) before any broker code exists | No |
 | **M6** | Execution: OrderManager, PaperBroker, reconciler, whitelist wrapper | Paper-mode loop runs against the live Binance feed and testnet; integration suite green on testnet | Yes (testnet) |
