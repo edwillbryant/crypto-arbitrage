@@ -54,12 +54,15 @@ def kline_csv(
     return ("\n".join(lines) + "\n").encode()
 
 
-def funding_csv(start: str, n: int, *, interval_hours: int = 8, rate: float = 0.0001) -> bytes:
+def funding_csv(
+    start: str, n: int, *, interval_hours: int = 8, rate: float = 0.0001, offset_ms: int = 0
+) -> bytes:
+    """`offset_ms` mimics real archive prints stamped a few ms after the hour (e.g. 16:00:00.002)."""
     t0 = pd.Timestamp(start, tz="UTC")
     lines = ["calc_time,funding_interval_hours,last_funding_rate"]
     for i in range(n):
         t = t0 + pd.Timedelta(hours=interval_hours * i)
-        lines.append(f"{t.value // 1_000_000},{interval_hours},{rate:.8f}")
+        lines.append(f"{t.value // 1_000_000 + offset_ms},{interval_hours},{rate:.8f}")
     return ("\n".join(lines) + "\n").encode()
 
 

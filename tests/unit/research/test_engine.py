@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from agent.core.types import Instrument, Target
-from agent.data.datasets import klines
+from agent.data.datasets import FUNDING, klines
 from agent.data.parse import parse_csv
 from agent.data.store import PITStore
 from agent.research.costs import CostModel
@@ -14,7 +14,7 @@ from agent.research.engine import BacktestConfig, run_backtest
 from agent.risk.exposure import ExposureGate
 from agent.sizing.voltarget import PassThroughSizer
 from agent.strategies.base import Snapshot
-from tests.fixtures.factories import kline_csv_from_prices
+from tests.fixtures.factories import funding_csv, kline_csv_from_prices
 from tests.unit.research.conftest import T0, ScriptedStrategy, put_funding, put_prices
 
 H = pd.Timedelta("1h")
@@ -147,3 +147,17 @@ def test_unaligned_start_rejected(store: PITStore) -> None:
             gate=OPEN_GATE,
             costs=CostModel.zero(),
         )
+
+
+def test_offset_funding_prints_are_charged_to_the_position_held_at_settlement(store: PITStore) -> None:
+    """A print stamped 08:00:00.002 settles at 08:00: a position opened by the 08:00 decision must not pay it,
+    and one closed by the 08:00 decision must."""
+    put_prices(store, [100.0] * 30, [100.0] * 30)
+    store.write(FUNDING, "BTCUSDT", parse_csv(FUNDING, funding_csv("2024-01-01", 4, rate=0.001, offset_ms=2)))
+    opened_at_8 = _run(store, ScriptedStrategy(lambda t: 1.0 if T0 + 8 * H <= t < T0 + 10 * H else 0.0), 20,
+                       require_funding=True)  # fmt: skip
+    assert opened_at_8.funding.empty
+    closed_at_8 = _run(
+        store, ScriptedStrategy(lambda t: 1.0 if t < T0 + 8 * H else 0.0), 20, require_funding=True
+    )
+    assert closed_at_8.funding["amount"].sum() == pytest.approx(-1.0)

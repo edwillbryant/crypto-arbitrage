@@ -41,7 +41,7 @@ def test_ohlc_inconsistency_fails() -> None:
 
 def test_close_time_must_match_interval() -> None:
     b = _bars()
-    b.loc[7, "close_time"] = b.loc[7, "key_time"] + pd.Timedelta(minutes=30)
+    b.loc[7, "close_time"] = b.loc[7, "key_time"] + pd.Timedelta(minutes=90)  # claims to outlast its hour
     assert "close_time_mismatch" in _checks(quality_report(H1, "BTCUSDT", b), Severity.ERROR)
 
 
@@ -109,3 +109,14 @@ def test_markdown_render_lists_every_report() -> None:
     assert "BTCUSDT" in md
     assert "ETHUSDT" in md
     assert "FAIL" in md
+
+
+def test_bars_cut_short_by_an_exchange_halt_warn_but_overlong_bars_fail() -> None:
+    """Real archives: a bar during a halt closes early (e.g. spot 2023-03-24 12:00 closes at 12:39:41)."""
+    b = _bars()
+    b.loc[7, "close_time"] = b.loc[7, "key_time"] + pd.Timedelta(minutes=39)
+    b.loc[9, "close_time"] = b.loc[9, "key_time"] - pd.Timedelta(minutes=13)  # zero-volume placeholder bar
+    r = quality_report(H1, "BTCUSDT", b)
+    assert r.passed and "truncated_bar" in _checks(r, Severity.WARN)
+    b.loc[11, "close_time"] = b.loc[11, "key_time"] + pd.Timedelta(hours=2)
+    assert "close_time_mismatch" in _checks(quality_report(H1, "BTCUSDT", b), Severity.ERROR)

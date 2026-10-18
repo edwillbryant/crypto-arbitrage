@@ -81,3 +81,10 @@ def test_conflicting_duplicates_still_fail() -> None:
     clash = raw[1].replace(",80000,", ",99999,")
     with pytest.raises(DataIntegrityError, match="conflicting"):
         parse_csv(METRICS, "\n".join([*raw, clash]).encode())
+
+
+def test_funding_prints_are_snapped_to_the_settlement_minute() -> None:
+    """45% of real prints are stamped 1-47 ms after the hour; settlement happens on the hour."""
+    df = parse_csv(FUNDING, funding_csv("2024-01-01", 3, offset_ms=2))
+    assert list(df["key_time"].dt.second + df["key_time"].dt.microsecond) == [0, 0, 0]
+    assert df.loc[1, "key_time"] == pd.Timestamp("2024-01-01 08:00", tz="UTC")
