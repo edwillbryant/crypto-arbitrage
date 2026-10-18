@@ -213,3 +213,21 @@ Coverage: `agent/risk` 100% branch; `agent/execution` + `live` + `ops` 97.8%. Bo
 - `BinanceBroker` over `SafeExchange`: positions limited to the universe, equity from the margin balance, margin ratio into `Health`, rules from market metadata
 - testnet integration suite: place/cancel/fill, WebSocket disconnect → stale → halt, 429 handling, full kill-switch flatten
 - watchdog transport (heartbeat push to the second host) and alerting
+
+## Network access opened (2026-10-18)
+
+| Host | From this cloud session |
+|---|---|
+| `data.binance.vision` (public archives) | ✅ reachable |
+| `testnet.binancefuture.com` | ✅ reachable |
+| `api.binance.com`, `fapi.binance.com` | ❌ HTTP 451 "Service unavailable from a restricted location" (Binance terms §b, Eligibility) |
+| `api.bybit.com` | ❌ blocked by country |
+
+- **Archive-format assumptions now verified:** `pytest -m integration` passes 4/4 against the real archive.
+  - Perp 1d candles parse correctly and every file matches its checksum.
+  - 2025 spot files use µs timestamps.
+  - Funding is published monthly at 8 h intervals (93 prints in January 2024).
+  - OI metrics are published daily at 5-minute intervals (288 per day, from 00:00).
+- **Consequence for the plan:**
+  - Research (M1 ingest, M3 sweeps, M4 hold-out) runs here.
+  - Paper and live trading (M6b/M7) must run on a server located where the owner is eligible to use Binance. Using a VPN or proxy to get around the restriction is not an option: it breaches the terms and risks a frozen account.
