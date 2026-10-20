@@ -8,7 +8,8 @@
 | M0 Scaffold | ✅ done | `make check` = ruff + mypy + pytest; Bittrex scripts in `legacy/` |
 | M1 Data layer | ✅ done: real data ingested and quality-checked | 16/18 PASS (premium index FAIL, unused); see `docs/data_review.md`, truncated-bar rule accepted by owner 2026-10-20 |
 | M2 Research engine | ✅ done (on synthetic fixtures) | No strategy has been backtested on real data |
-| M3a Strategy code C1–C5 | ✅ done (offline) | Sweeps (M3b) need real data |
+| M3a Strategy code C1–C5 | ✅ done (offline) | |
+| M3b Sweeps | ✅ done, ⛳ **owner checkpoint** | 1,482 runs; C1 + C2 PROPOSE, C3 + C5 REJECT; see `docs/05-SWEEP-REVIEW.md` |
 | M6a Execution (offline half) | ✅ done | Binance feed/broker + testnet suite (M6b) need network |
 | M5 RiskGate + kill switch | ✅ done | Moved ahead of M4 (owner decision) so the single hold-out run uses the production gate |
 
