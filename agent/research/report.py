@@ -22,6 +22,10 @@ def _fmt(v: object) -> str:
     return "n/a" if v is None else str(v)
 
 
+def _lock(v: object) -> str:
+    return "never" if v is None or (isinstance(v, float) and math.isnan(v)) else str(v)[:10]
+
+
 def _dsr(train1: pd.DataFrame, row: pd.Series) -> float:
     try:
         return deflated_sharpe_from_trials(
@@ -69,7 +73,7 @@ def _section(reg: Registry, name: str, out_dir: Path) -> list[str]:
         f"- **Chosen cell:** `{sel.params}`",
         f"- Deflated Sharpe (train, N = {len(train1)} trials): {_dsr(train1, row1):.3f} "
         "(the binding test is M4, on the hold-out)",
-        f"- Production lock: would have locked at {row1['would_lock_at'] or 'never'} in train",
+        f"- Production 8% drawdown lock in train: {_lock(row1['would_lock_at'])}",
         "",
         "| Segment | Costs | " + " | ".join(COLS) + " | would lock at |",
         "|---|---|" + "---|" * (len(COLS) + 1),
@@ -78,7 +82,7 @@ def _section(reg: Registry, name: str, out_dir: Path) -> list[str]:
         lines.append(
             f"| {r['segment']} | {r['cost_multiplier']:.0f}x | "
             + " | ".join(_fmt(r[c]) for c in COLS)
-            + f" | {r['would_lock_at'] or 'never'} |"
+            + f" | {_lock(r['would_lock_at'])} |"
         )
     return [*lines, ""]
 

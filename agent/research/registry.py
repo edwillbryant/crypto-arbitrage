@@ -18,7 +18,7 @@ from typing import Any
 from agent.core.errors import DataIntegrityError
 
 GENESIS = "0" * 64
-SEGMENTS = {"train", "validation"}  # hold-out runs only through the lock workflow (M4)
+SEGMENTS = {"train", "validation", "diagnostic"}  # hold-out runs only through the lock workflow (M4)
 
 
 def _git_state() -> dict[str, Any]:

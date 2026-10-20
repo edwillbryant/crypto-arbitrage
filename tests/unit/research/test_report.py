@@ -48,3 +48,17 @@ def test_report_states_verdict_choice_and_dsr(tmp_path: Path) -> None:
 def test_report_handles_a_strategy_with_no_runs(tmp_path: Path) -> None:
     md = build_report(Registry(tmp_path / "t.jsonl"), ["c1_carry"], out_dir=tmp_path / "r")
     assert "no runs recorded" in md
+
+
+def test_never_locked_is_shown_as_never(tmp_path: Path) -> None:
+    reg = Registry(tmp_path / "trials.jsonl")
+    for n in (20, 50, 100, 200):
+        for k in (2.0, 3.0, 4.0, 5.0):
+            for cost in (1.0, 2.0, 3.0):
+                for seg in ("train", "validation"):
+                    rec = _rec(n, k, seg, cost, sharpe=0.6, pnl=500.0)
+                    rec["would_lock_at"] = None
+                    reg.append(rec)
+    md = build_report(reg, ["c2_trend"], out_dir=tmp_path / "r")
+    assert "nan" not in md.split("Chosen cell")[1]
+    assert "| never |" in md

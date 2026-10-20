@@ -160,3 +160,42 @@ def test_validation_veto() -> None:
 def test_costs_must_survive_doubling() -> None:
     cells = {(a, b): (0.5, -5.0, 0.3) for a in (1, 2, 3) for b in (1, 2, 3)}  # profitable only at 1x
     assert select(_results(cells), ["a", "b"]).verdict == "REJECT"
+
+
+def test_diagnostic_runs_are_allowed_before_the_holdout_only(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    kw = {"store": store, "quality_status": _status(tmp_path, store), "cost_multiplier": 1.0}
+    rec = run_variant(
+        "c2_trend",
+        {"n": 20, "k_atr": 3.0},
+        start=pd.Timestamp("2020-02-01", tz="UTC"),
+        end=pd.Timestamp("2020-02-20", tz="UTC"),
+        segment="diagnostic",
+        **kw,
+    )  # type: ignore[arg-type]
+    assert rec["segment"] == "diagnostic"
+    with pytest.raises(PermissionError):
+        run_variant(
+            "c2_trend",
+            {"n": 20, "k_atr": 3.0},
+            start=pd.Timestamp("2024-12-01", tz="UTC"),
+            end=pd.Timestamp("2025-03-01", tz="UTC"),
+            segment="diagnostic",
+            **kw,
+        )  # type: ignore[arg-type]
+
+
+def test_pnl_breakdown_reconciles_with_net_pnl(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    rec = run_variant(
+        "c2_trend",
+        {"n": 20, "k_atr": 3.0},
+        store=store,
+        quality_status=_status(tmp_path, store),
+        start=pd.Timestamp("2020-02-01", tz="UTC"),
+        end=pd.Timestamp("2020-02-28", tz="UTC"),
+        segment="diagnostic",
+        cost_multiplier=1.0,
+    )
+    b = rec["pnl_breakdown"]
+    assert b["price"] + b["funding"] - b["fees"] == pytest.approx(rec["metrics"]["net_pnl"], abs=1e-6)

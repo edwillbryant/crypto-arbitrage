@@ -33,6 +33,8 @@ SEGMENTS: dict[str, tuple[pd.Timestamp, pd.Timestamp]] = {
     "train": (pd.Timestamp("2020-01-01", tz="UTC"), pd.Timestamp("2024-01-01", tz="UTC")),
     "validation": (pd.Timestamp("2024-01-01", tz="UTC"), HOLDOUT_START),
 }
+# Extra looks (e.g. regime splits) at already-chosen cells: recorded as trials, never used for selection.
+DIAGNOSTIC = "diagnostic"
 EXEC_INTERVAL = "1h"
 MIN_NEIGHBOUR_POSITIVE = 0.7
 
@@ -56,8 +58,11 @@ def check_quality(strategy: Strategy, status_path: Path) -> None:
             f"no quality report at {status_path}: run `python -m agent data quality` first"
         )
     status = json.loads(Path(status_path).read_text())["datasets"]
-    bad = [f"{d.name}:{s}={status.get(f'{d.name}:{s}', 'missing')}" for d, s in required_datasets(strategy)
-           if status.get(f"{d.name}:{s}") != "PASS"]  # fmt: skip
+    bad = [
+        f"{d.name}:{s}={status.get(f'{d.name}:{s}', 'missing')}"
+        for d, s in required_datasets(strategy)
+        if status.get(f"{d.name}:{s}") != "PASS"
+    ]
     if bad:
         raise QualityGateError(f"{strategy.name} needs datasets that are not PASS (FAIL or missing): {bad}")
 
@@ -81,16 +86,30 @@ def run_variant(
     cost_multiplier: float,
     initial_equity: float = 10_000.0,
 ) -> dict[str, Any]:
-    if segment not in SEGMENTS or end > HOLDOUT_START:
+    if segment not in (*SEGMENTS, DIAGNOSTIC) or end > HOLDOUT_START:
         raise PermissionError(
             f"research runs must end by {HOLDOUT_START.date()}; the hold-out is M4's, run once"
         )
     strategy = REGISTRY[name].build(params)
     check_quality(strategy, quality_status)
     cfg = BacktestConfig(start=start, end=end, initial_equity=initial_equity, exec_interval=EXEC_INTERVAL)
-    result = run_backtest(strategy, store, cfg, sizer=VolTargetSizer(), gate=ExposureGate(),
-                          costs=CostModel().scaled(cost_multiplier))  # fmt: skip
+    result = run_backtest(
+        strategy,
+        store,
+        cfg,
+        sizer=VolTargetSizer(),
+        gate=ExposureGate(),
+        costs=CostModel().scaled(cost_multiplier),
+    )
     lock = first_lock_time(result.equity, Limits().max_drawdown)
+    metrics = summarize(result, strategy.decision_interval)
+    # net = price/basis moves (incl. slippage vs mark) + funding - fees; price is the residual by construction
+    breakdown = {
+        "funding": metrics["funding"],
+        "fees": metrics["fees"],
+        "slippage": metrics["slippage"],
+        "price": metrics["net_pnl"] - metrics["funding"] + metrics["fees"],
+    }
     return {
         "strategy": name,
         "params": params,
@@ -98,7 +117,8 @@ def run_variant(
         "start": start.isoformat(),
         "end": end.isoformat(),
         "cost_multiplier": cost_multiplier,
-        "metrics": summarize(result, strategy.decision_interval),
+        "metrics": metrics,
+        "pnl_breakdown": breakdown,
         "would_lock_at": lock.isoformat() if lock is not None else None,
         "events": len(result.events),
     }
