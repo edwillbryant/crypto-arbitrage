@@ -129,6 +129,17 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_report(args: argparse.Namespace) -> int:
+    from agent.research.registry import Registry  # noqa: PLC0415
+    from agent.research.report import build_report  # noqa: PLC0415
+
+    reg = Registry(args.registry)
+    reg.verify()
+    args.out.write_text(build_report(reg, args.strategies.split(","), out_dir=args.csv_dir))
+    print(f"wrote {args.out}")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     if args.replay:
         return _replay(args)
@@ -228,6 +239,12 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument("--status", type=Path, default=Path("data/quality_status.json"))
     sw.add_argument("--registry", type=Path, default=Path("research/trials.jsonl"))
     sw.set_defaults(func=_cmd_sweep)
+    rp = rsub.add_parser("report", help="apply the pre-registered selection and write the results report")
+    rp.add_argument("--strategies", default="c1_carry,c2_trend,c3_cascade,c5_seasonality")
+    rp.add_argument("--registry", type=Path, default=Path("research/trials.jsonl"))
+    rp.add_argument("--out", type=Path, default=Path("docs/05-SWEEP-RESULTS.md"))
+    rp.add_argument("--csv-dir", type=Path, default=Path("research/results"))
+    rp.set_defaults(func=_cmd_report)
 
     r = sub.add_parser("run", help="run the agent (paper only; there is no live mode until Gate 6)")
     r.add_argument("--mode", choices=["paper"], required=True)
