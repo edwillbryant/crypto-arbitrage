@@ -9,3 +9,6 @@ __pycache__/
 !/data/.gitkeep
 .env
 *.key
+
+# research run logs (the trial registry itself IS committed)
+research/*.log
