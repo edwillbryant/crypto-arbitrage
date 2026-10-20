@@ -5,7 +5,7 @@ checksum-verified. The full machine report is in `docs/data_quality.md` (regener
 
 **Result: 16/18 datasets PASS. The two FAILs (premium index) aren't used by any strategy.**
 
-## Owner review needed: one classifier change made after seeing data
+## Classifier change made after seeing data: ACCEPTED by owner 2026-10-20
 
 Spot 1m/1h initially FAILED on `close_time_mismatch`: 8 bars per series close *early*.
 
