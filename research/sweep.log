@@ -1,0 +1,45 @@
+concurrent.futures.process._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/concurrent/futures/process.py", line 255, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+  File "/home/user/crypto-arbitrage/agent/research/campaign.py", line 32, in _work
+    return run_variant(
+        name,
+    ...<6 lines>...
+        cost_multiplier=cost,
+    )
+  File "/home/user/crypto-arbitrage/agent/research/runner.py", line 89, in run_variant
+    check_quality(strategy, quality_status)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/crypto-arbitrage/agent/research/runner.py", line 62, in check_quality
+    raise QualityGateError(f"{strategy.name} needs datasets that are not PASS (FAIL or missing): {bad}")
+agent.research.runner.QualityGateError: c5_seasonality needs datasets that are not PASS (FAIL or missing): ['perp/fundingRate:BTCUSDT=missing']
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/user/crypto-arbitrage/agent/__main__.py", line 5, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/user/crypto-arbitrage/agent/cli.py", line 263, in main
+    code: int = args.func(args)
+                ~~~~~~~~~^^^^^^
+  File "/home/user/crypto-arbitrage/agent/cli.py", line 120, in _cmd_sweep
+    n = run_campaign(
+        args.strategies.split(","),
+    ...<4 lines>...
+        progress=True,
+    )
+  File "/home/user/crypto-arbitrage/agent/research/campaign.py", line 89, in run_campaign
+    reg.append(fut.result())  # a failed run raises here and stops the campaign loudly
+               ~~~~~~~~~~^^
+  File "/usr/lib/python3.13/concurrent/futures/_base.py", line 453, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/concurrent/futures/_base.py", line 402, in __get_result
+    raise self._exception
+agent.research.runner.QualityGateError: c5_seasonality needs datasets that are not PASS (FAIL or missing): ['perp/fundingRate:BTCUSDT=missing']

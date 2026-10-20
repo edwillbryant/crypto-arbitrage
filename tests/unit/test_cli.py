@@ -12,14 +12,20 @@ from tests.fixtures.factories import kline_csv
 
 
 def test_quality_on_empty_store_fails(tmp_path: Path) -> None:
-    assert main(["data", "quality", "--store", str(tmp_path), "--out", str(tmp_path / "q.md")]) == 1
+    out = ["--out", str(tmp_path / "q.md"), "--status", str(tmp_path / "status.json")]
+    assert main(["data", "quality", "--store", str(tmp_path), *out]) == 1
 
 
 def test_quality_writes_report(tmp_path: Path) -> None:
     h1 = klines("perp", "1h")
     PITStore(tmp_path / "s").write(h1, "BTCUSDT", parse_csv(h1, kline_csv("2024-01-01", 100)))
     out = tmp_path / "q.md"
-    assert main(["data", "quality", "--store", str(tmp_path / "s"), "--out", str(out)]) == 0
+    status = tmp_path / "status.json"
+    assert (
+        main(["data", "quality", "--store", str(tmp_path / "s"), "--out", str(out), "--status", str(status)])
+        == 0
+    )
+    assert '"perp/klines/1h:BTCUSDT": "PASS"' in status.read_text()
     assert "perp/klines/1h | BTCUSDT" in out.read_text()
 
 
