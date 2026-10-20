@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -71,6 +72,12 @@ def _cmd_quality(args: argparse.Namespace) -> int:
         print("store is empty: run `python -m agent data ingest` first", file=sys.stderr)
         return 1
     args.out.write_text(render_markdown(reports))
+    status = {
+        "generated_at": pd.Timestamp.now(tz="UTC").isoformat(),
+        "datasets": {f"{r.dataset}:{r.symbol}": "PASS" if r.passed else "FAIL" for r in reports},
+    }
+    args.status.parent.mkdir(parents=True, exist_ok=True)
+    args.status.write_text(json.dumps(status, indent=1, sort_keys=True))
     bad = [f"{r.dataset} {r.symbol}" for r in reports if not r.passed]
     print(f"wrote {args.out}: {len(reports) - len(bad)} passed, {len(bad)} failed")
     for b in bad:
@@ -104,6 +111,21 @@ def _cmd_unlock(args: argparse.Namespace) -> int:
         print(f"refusing: {e}", file=sys.stderr)
         return 2
     print("unlocked; the drawdown peak was reset to current equity")
+    return 0
+
+
+def _cmd_sweep(args: argparse.Namespace) -> int:
+    from agent.research.campaign import run_campaign  # noqa: PLC0415
+
+    n = run_campaign(
+        args.strategies.split(","),
+        store_path=args.store,
+        status_path=args.status,
+        registry_path=args.registry,
+        workers=args.workers,
+        progress=True,
+    )
+    print(f"done: {n} new runs recorded in {args.registry}")
     return 0
 
 
@@ -192,7 +214,20 @@ def build_parser() -> argparse.ArgumentParser:
     q = data.add_parser("quality", help="write the data-quality report")
     q.add_argument("--store", type=Path, default=Path("data/store"))
     q.add_argument("--out", type=Path, default=Path("docs/data_quality.md"))
+    q.add_argument("--status", type=Path, default=Path("data/quality_status.json"))
     q.set_defaults(func=_cmd_quality)
+
+    research = sub.add_parser("research", help="pre-registered sweeps (docs/04-RESEARCH-PROTOCOL.md)")
+    rsub = research.add_subparsers(dest="cmd", required=True)
+    sw = rsub.add_parser(
+        "sweep", help="run every variant on train + validation at 1x/2x/3x costs (resumable)"
+    )
+    sw.add_argument("--strategies", default="c1_carry,c2_trend,c3_cascade,c5_seasonality")
+    sw.add_argument("--workers", type=int, default=4)
+    sw.add_argument("--store", type=Path, default=Path("data/store"))
+    sw.add_argument("--status", type=Path, default=Path("data/quality_status.json"))
+    sw.add_argument("--registry", type=Path, default=Path("research/trials.jsonl"))
+    sw.set_defaults(func=_cmd_sweep)
 
     r = sub.add_parser("run", help="run the agent (paper only; there is no live mode until Gate 6)")
     r.add_argument("--mode", choices=["paper"], required=True)
@@ -209,8 +244,10 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--state-dir", type=Path, default=Path("data/state/replay"))
     r.set_defaults(func=_cmd_run)
 
-    for name, func, help_ in (("kill", _cmd_kill, "trip the kill switch: cancel all, flatten, lock"),
-                              ("unlock", _cmd_unlock, "release the lock (human only)")):  # fmt: skip
+    for name, func, help_ in (
+        ("kill", _cmd_kill, "trip the kill switch: cancel all, flatten, lock"),
+        ("unlock", _cmd_unlock, "release the lock (human only)"),
+    ):
         c = sub.add_parser(name, help=help_)
         c.add_argument("--state", type=Path, default=STATE_DB)
         c.add_argument("--flag", type=Path, default=KILL_FLAG)

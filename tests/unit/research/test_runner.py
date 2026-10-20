@@ -67,9 +67,16 @@ def _status(tmp: Path, store: PITStore, fail: str | None = None) -> Path:
 
 def test_run_variant_on_a_short_window(tmp_path: Path) -> None:
     store = _store(tmp_path)
-    rec = run_variant("c2_trend", {"n": 20, "k_atr": 3.0}, store=store, quality_status=_status(tmp_path, store),
-                      start=pd.Timestamp("2020-02-01", tz="UTC"), end=pd.Timestamp("2020-02-28", tz="UTC"),
-                      segment="train", cost_multiplier=2.0)  # fmt: skip
+    rec = run_variant(
+        "c2_trend",
+        {"n": 20, "k_atr": 3.0},
+        store=store,
+        quality_status=_status(tmp_path, store),
+        start=pd.Timestamp("2020-02-01", tz="UTC"),
+        end=pd.Timestamp("2020-02-28", tz="UTC"),
+        segment="train",
+        cost_multiplier=2.0,
+    )
     assert rec["strategy"] == "c2_trend" and rec["cost_multiplier"] == 2.0 and rec["segment"] == "train"
     assert {"sharpe", "max_drawdown", "trades", "net_pnl", "sr_per_period", "n_obs"} <= set(rec["metrics"])
     assert "would_lock_at" in rec
@@ -78,15 +85,27 @@ def test_run_variant_on_a_short_window(tmp_path: Path) -> None:
 def test_holdout_dates_are_refused(tmp_path: Path) -> None:
     store = _store(tmp_path)
     with pytest.raises(PermissionError, match="hold-out"):
-        run_variant("c2_trend", {"n": 20, "k_atr": 3.0}, store=store, quality_status=_status(tmp_path, store),
-                    start=pd.Timestamp("2024-06-01", tz="UTC"), end=pd.Timestamp("2025-02-01", tz="UTC"),
-                    segment="validation", cost_multiplier=1.0)  # fmt: skip
+        run_variant(
+            "c2_trend",
+            {"n": 20, "k_atr": 3.0},
+            store=store,
+            quality_status=_status(tmp_path, store),
+            start=pd.Timestamp("2024-06-01", tz="UTC"),
+            end=pd.Timestamp("2025-02-01", tz="UTC"),
+            segment="validation",
+            cost_multiplier=1.0,
+        )
 
 
 def test_failed_or_missing_quality_blocks_research(tmp_path: Path) -> None:
     store = _store(tmp_path)
-    kw = {"store": store, "start": pd.Timestamp("2020-02-01", tz="UTC"), "end": pd.Timestamp("2020-02-10", tz="UTC"),
-          "segment": "train", "cost_multiplier": 1.0}  # fmt: skip
+    kw = {
+        "store": store,
+        "start": pd.Timestamp("2020-02-01", tz="UTC"),
+        "end": pd.Timestamp("2020-02-10", tz="UTC"),
+        "segment": "train",
+        "cost_multiplier": 1.0,
+    }
     with pytest.raises(QualityGateError, match="FAIL"):
         run_variant(
             "c2_trend",

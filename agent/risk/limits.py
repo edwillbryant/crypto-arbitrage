@@ -23,25 +23,27 @@ class Limits(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     # exposure (fractions of equity)
-    max_weight: float = Field(0.25, gt=0)
-    max_gross: float = Field(1.0, gt=0)
+    max_weight: float = Field(default=0.25, gt=0)
+    max_gross: float = Field(default=1.0, gt=0)
     # losses (fractions)
-    max_daily_loss: float = Field(0.01, gt=0)  # vs start-of-day equity (00:00 UTC) -> reduce-only
-    max_drawdown: float = Field(0.08, gt=0)  # vs peak equity -> flatten and lock
+    max_daily_loss: float = Field(default=0.01, gt=0)  # vs start-of-day equity (00:00 UTC) -> reduce-only
+    max_drawdown: float = Field(default=0.08, gt=0)  # vs peak equity -> flatten and lock
     # data freshness
-    max_book_age_s: float = Field(5.0, gt=0)  # -> reduce-only
-    stale_flatten_s: float = Field(60.0, gt=0)  # -> flatten
-    max_bars_late: int = Field(1, ge=0)  # -> reduce-only
+    max_book_age_s: float = Field(default=5.0, gt=0)  # -> reduce-only
+    stale_flatten_s: float = Field(default=60.0, gt=0)  # -> flatten
+    max_bars_late: int = Field(default=1, ge=0)  # -> reduce-only
     # exchange/API health (rolling window)
-    api_error_limit: int = Field(5, gt=0)  # -> halt
-    order_reject_limit: int = Field(3, gt=0)  # -> halt
-    api_window_s: float = Field(300.0, gt=0)
-    max_clock_drift_ms: float = Field(500.0, gt=0)  # -> halt (signed requests get rejected anyway)
+    api_error_limit: int = Field(default=5, gt=0)  # -> halt
+    order_reject_limit: int = Field(default=3, gt=0)  # -> halt
+    api_window_s: float = Field(default=300.0, gt=0)
+    max_clock_drift_ms: float = Field(default=500.0, gt=0)  # -> halt (signed requests get rejected anyway)
     # collateral and margin
-    depeg_reduce: float = Field(0.005, gt=0)  # |1 - stablecoin price| -> reduce-only
-    depeg_flatten: float = Field(0.02, gt=0)  # -> flatten
-    max_margin_ratio: float = Field(0.30, gt=0, lt=1)  # [ASSUMPTION] buffer; -> cut perp exposure
-    margin_reduce_factor: float = Field(0.75, gt=0, lt=1)  # perp groups shrink to this x current per decision
+    depeg_reduce: float = Field(default=0.005, gt=0)  # |1 - stablecoin price| -> reduce-only
+    depeg_flatten: float = Field(default=0.02, gt=0)  # -> flatten
+    max_margin_ratio: float = Field(default=0.30, gt=0, lt=1)  # [ASSUMPTION] buffer; -> cut perp exposure
+    margin_reduce_factor: float = Field(
+        default=0.75, gt=0, lt=1
+    )  # perp groups shrink to this x current per decision
 
     @model_validator(mode="after")
     def _consistent(self) -> Limits:
