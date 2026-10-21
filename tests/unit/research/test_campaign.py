@@ -47,3 +47,21 @@ def test_campaign_records_every_run_and_resumes(tmp_path: Path) -> None:
     assert len(df) == 6 and {"start_hour", "length", "days", "sharpe", "segment", "cost_multiplier"} <= set(
         df.columns
     )
+
+
+def test_resume_key_includes_the_date_range(tmp_path: Path) -> None:
+    """A regime-split run of a cell must not make a full-range run of the same cell look done."""
+    store, status = _setup(tmp_path)
+    reg = tmp_path / "trials.jsonl"
+    kw = {
+        "store_path": store,
+        "status_path": status,
+        "registry_path": reg,
+        "costs": [1.0],
+        "workers": 1,
+        "limit": 1,
+    }
+    first = {"diagnostic": (pd.Timestamp("2020-01-03", tz="UTC"), pd.Timestamp("2020-01-05", tz="UTC"))}
+    second = {"diagnostic": (pd.Timestamp("2020-01-03", tz="UTC"), pd.Timestamp("2020-01-08", tz="UTC"))}
+    assert run_campaign(["c5_seasonality"], segments=first, **kw) == 1  # type: ignore[arg-type]
+    assert run_campaign(["c5_seasonality"], segments=second, **kw) == 1  # type: ignore[arg-type]

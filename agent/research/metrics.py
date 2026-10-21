@@ -15,6 +15,12 @@ def returns_from_equity(equity: pd.Series) -> pd.Series:
     return equity.pct_change().dropna().reset_index(drop=True)
 
 
+def daily_returns(equity: pd.Series) -> pd.Series:
+    """Returns between UTC day closes (last equity value of each day)."""
+    closes = equity.resample("1D").last().dropna()
+    return closes.pct_change().dropna().reset_index(drop=True)
+
+
 def sharpe(returns: pd.Series, periods_per_year: float) -> float:
     if len(returns) < 2:
         return math.nan
@@ -75,4 +81,17 @@ def summarize(result: BacktestResult, decision_interval: pd.Timedelta) -> dict[s
         "skew": cast(float, r.skew()) if len(r) > 2 else math.nan,
         "kurt": cast(float, r.kurt()) + 3 if len(r) > 3 else math.nan,  # non-excess, as the DSR expects
         "events": len(result.events),
+        **_daily(eq),
+    }
+
+
+def _daily(eq: pd.Series) -> dict[str, Any]:
+    """Daily-return statistics: the basis for the M4 deflated Sharpe (hourly returns are too lumpy)."""
+    d = daily_returns(eq)
+    return {
+        "sharpe_daily": sharpe(d, 365.0),
+        "sr_daily": sharpe(d, 1.0),
+        "n_days": len(d),
+        "skew_daily": cast(float, d.skew()) if len(d) > 2 else math.nan,
+        "kurt_daily": cast(float, d.kurt()) + 3 if len(d) > 3 else math.nan,
     }

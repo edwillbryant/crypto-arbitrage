@@ -20,8 +20,8 @@ from agent.research.runner import SEGMENTS, run_variant
 from agent.strategies.registry import variants
 
 
-def _key(strategy: str, params: dict[str, Any], segment: str, cost: float) -> str:
-    return json.dumps([strategy, params, segment, float(cost)], sort_keys=True, default=str)
+def _key(strategy: str, params: dict[str, Any], segment: str, cost: float, *, start: str, end: str) -> str:
+    return json.dumps([strategy, params, segment, float(cost), start, end], sort_keys=True, default=str)
 
 
 Job = tuple[str, dict[str, Any], str, str, str, float, str, str]
@@ -55,13 +55,19 @@ def run_campaign(
 ) -> int:
     """Returns the number of runs performed (excluding ones already recorded)."""
     reg = Registry(registry_path)
-    done = {_key(r["strategy"], r["params"], r["segment"], r["cost_multiplier"]) for r in reg.trials()}
+    done = set()
+    for r in reg.trials():
+        start, end = r.get("start", ""), r.get("end", "")
+        done.add(_key(r["strategy"], r["params"], r["segment"], r["cost_multiplier"], start=start, end=end))
     jobs = []
     for name in strategies:
         for params in variants(name)[:limit]:
             for segment, (start, end) in segments.items():
                 for cost in costs:
-                    if _key(name, params, segment, cost) not in done:
+                    if (
+                        _key(name, params, segment, cost, start=start.isoformat(), end=end.isoformat())
+                        not in done
+                    ):
                         jobs.append(
                             (
                                 name,

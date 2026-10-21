@@ -161,6 +161,72 @@ def _cmd_diagnose(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_backfill(args: argparse.Namespace) -> int:
+    from agent.research.campaign import run_campaign  # noqa: PLC0415
+    from agent.research.runner import DIAGNOSTIC, SEGMENTS  # noqa: PLC0415
+
+    n = run_campaign(
+        args.strategies.split(","),
+        store_path=args.store,
+        status_path=args.status,
+        registry_path=args.registry,
+        segments={DIAGNOSTIC: SEGMENTS["train"]},
+        costs=[1.0],
+        workers=args.workers,
+        progress=True,
+    )
+    print(f"done: {n} train re-runs recorded (segment 'diagnostic') for daily Sharpe ratios")
+    return 0
+
+
+def _cmd_lock(args: argparse.Namespace) -> int:
+    from agent.research.holdout import make_lock  # noqa: PLC0415
+    from agent.research.registry import Registry  # noqa: PLC0415
+
+    path = make_lock(
+        args.strategy,
+        json.loads(args.params),
+        locks_dir=args.locks,
+        protocol_path=args.protocol,
+        registry=Registry(args.registry),
+    )
+    print(f"wrote {path}: commit it before running the hold-out")
+    return 0
+
+
+def _cmd_holdout(args: argparse.Namespace) -> int:
+    from agent.research.holdout import run_holdout  # noqa: PLC0415
+    from agent.research.registry import Registry  # noqa: PLC0415
+    from agent.risk.limits import load_limits  # noqa: PLC0415
+
+    limits, digest = load_limits(Path("config/limits.yaml"))
+    recs = run_holdout(
+        args.strategy,
+        store=PITStore(args.store),
+        quality_status=args.status,
+        locks_dir=args.locks,
+        registry=Registry(args.registry),
+        protocol_path=args.protocol,
+        limits=limits,
+    )
+    print(
+        f"{args.strategy}: {len(recs)} hold-out runs recorded (limits sha256 {digest[:12]}); "
+        "next: `research verdict`"
+    )
+    return 0
+
+
+def _cmd_verdict(args: argparse.Namespace) -> int:
+    from agent.research.holdout_report import build  # noqa: PLC0415
+    from agent.research.registry import Registry  # noqa: PLC0415
+
+    reg = Registry(args.registry)
+    reg.verify()
+    args.out.write_text(build(reg, args.strategies.split(",")))
+    print(f"wrote {args.out}")
+    return 0
+
+
 def _cmd_report(args: argparse.Namespace) -> int:
     from agent.research.registry import Registry  # noqa: PLC0415
     from agent.research.report import build_report  # noqa: PLC0415

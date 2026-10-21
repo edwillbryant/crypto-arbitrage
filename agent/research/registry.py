@@ -58,6 +58,17 @@ class Registry:
             )
         if segment not in SEGMENTS or "strategy" not in record:
             raise ValueError(f"record needs 'strategy' and a segment in {sorted(SEGMENTS)}")
+        return self._write(record)
+
+    def append_holdout(self, record: dict[str, Any], *, lock: dict[str, Any]) -> dict[str, Any]:
+        """Only the hold-out runner calls this, with the committed lock it checked."""
+        if record.get("segment") != "holdout":
+            raise ValueError("append_holdout is for hold-out records only")
+        if record.get("strategy") != lock.get("strategy") or record.get("params") != lock.get("params"):
+            raise PermissionError("hold-out record does not match its lock")
+        return self._write(record)
+
+    def _write(self, record: dict[str, Any]) -> dict[str, Any]:
         lines = self._lines()
         full = {
             **record,

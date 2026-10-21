@@ -25,18 +25,39 @@ def env(tmp_path: Path):  # type: ignore[no-untyped-def]
             store.write(ds, sym, parse_csv(ds, kline_csv("2020-01-01", n, iv, seed=i)))
         store.write(FUNDING, sym, parse_csv(FUNDING, funding_csv("2020-01-01", 80 * 3)))
     status = tmp_path / "status.json"
-    status.write_text(json.dumps({"datasets": {f"{d}:{s}": "PASS" for d in ("perp/klines/1h", "perp/klines/1d",
-                      "perp/fundingRate") for s in ("BTCUSDT", "ETHUSDT")}}))  # fmt: skip
+    status.write_text(
+        json.dumps(
+            {
+                "datasets": {
+                    f"{d}:{s}": "PASS"
+                    for d in ("perp/klines/1h", "perp/klines/1d", "perp/fundingRate")
+                    for s in ("BTCUSDT", "ETHUSDT")
+                }
+            }
+        )
+    )
     protocol = tmp_path / "protocol.md"
     protocol.write_text("pre-registered rules\n")
-    return {"store": store, "status": status, "locks": tmp_path / "locks", "reg": Registry(tmp_path / "t.jsonl"),
-            "protocol": protocol}  # fmt: skip
+    return {
+        "store": store,
+        "status": status,
+        "locks": tmp_path / "locks",
+        "reg": Registry(tmp_path / "t.jsonl"),
+        "protocol": protocol,
+    }
 
 
 def _run(env, committed: bool = True):  # type: ignore[no-untyped-def]
-    return run_holdout("c2_trend", store=env["store"], quality_status=env["status"], locks_dir=env["locks"],
-                       registry=env["reg"], protocol_path=env["protocol"], period=PERIOD,
-                       is_committed=lambda p: committed)  # fmt: skip
+    return run_holdout(
+        "c2_trend",
+        store=env["store"],
+        quality_status=env["status"],
+        locks_dir=env["locks"],
+        registry=env["reg"],
+        protocol_path=env["protocol"],
+        period=PERIOD,
+        is_committed=lambda p: committed,
+    )
 
 
 def test_lock_records_params_commit_and_protocol_hash(env) -> None:  # type: ignore[no-untyped-def]
@@ -53,8 +74,13 @@ def test_lock_records_params_commit_and_protocol_hash(env) -> None:  # type: ign
 
 def test_only_pre_registered_variants_can_be_locked(env) -> None:  # type: ignore[no-untyped-def]
     with pytest.raises(ValueError, match="pre-registered"):
-        make_lock("c2_trend", {"n": 37, "k_atr": 3.0}, locks_dir=env["locks"], protocol_path=env["protocol"],
-                  registry=env["reg"])  # fmt: skip
+        make_lock(
+            "c2_trend",
+            {"n": 37, "k_atr": 3.0},
+            locks_dir=env["locks"],
+            protocol_path=env["protocol"],
+            registry=env["reg"],
+        )
 
 
 def test_holdout_needs_a_committed_lock_and_an_unchanged_protocol(env) -> None:  # type: ignore[no-untyped-def]
@@ -72,10 +98,21 @@ def test_holdout_runs_once_with_all_required_runs(env) -> None:  # type: ignore[
     make_lock("c2_trend", PARAMS, locks_dir=env["locks"], protocol_path=env["protocol"], registry=env["reg"])
     recs = _run(env)
     assert [(r["universe"], r["cost_multiplier"]) for r in recs] == [
-        ("both", 1.0), ("both", 2.0), ("both", 3.0), ("BTCUSDT", 1.0), ("ETHUSDT", 1.0)]  # fmt: skip
+        ("both", 1.0),
+        ("both", 2.0),
+        ("both", 3.0),
+        ("BTCUSDT", 1.0),
+        ("ETHUSDT", 1.0),
+    ]
     assert all(r["segment"] == "holdout" for r in recs)
-    assert {"sharpe_daily", "sr_daily", "n_days", "max_trade_share", "max_month_share", "funding_periods_held"} <= set(
-        recs[0]["metrics"]) | set(recs[0])  # fmt: skip
+    assert {
+        "sharpe_daily",
+        "sr_daily",
+        "n_days",
+        "max_trade_share",
+        "max_month_share",
+        "funding_periods_held",
+    } <= set(recs[0]["metrics"]) | set(recs[0])
     env["reg"].verify()
     with pytest.raises(PermissionError, match="already"):
         _run(env)
@@ -87,10 +124,23 @@ def test_plain_registry_append_still_refuses_holdout(env) -> None:  # type: igno
 
 
 def _hold(universe: str, cost: float, **m: float) -> dict[str, object]:
-    base = {"sharpe_daily": 1.2, "sr_daily": 0.063, "n_days": 640, "skew_daily": 0.0, "kurt_daily": 3.0,
-            "net_pnl": 500.0, "trades": 40}  # fmt: skip
-    return {"universe": universe, "cost_multiplier": cost, "metrics": {**base, **m}, "max_trade_share": 0.1,
-            "max_month_share": 0.15, "funding_periods_held": 0}  # fmt: skip
+    base = {
+        "sharpe_daily": 1.9,
+        "sr_daily": 0.1,  # SR 1.9 over 640 days clears DSR 0.95 vs N=5
+        "n_days": 640,
+        "skew_daily": 0.0,
+        "kurt_daily": 3.0,
+        "net_pnl": 500.0,
+        "trades": 40,
+    }
+    return {
+        "universe": universe,
+        "cost_multiplier": cost,
+        "metrics": {**base, **m},
+        "max_trade_share": 0.1,
+        "max_month_share": 0.15,
+        "funding_periods_held": 0,
+    }
 
 
 def _records(**over: object) -> list[dict[str, object]]:
@@ -138,3 +188,27 @@ def test_verdict_reject_on_dsr_single_asset_or_concentration() -> None:
     r[4]["metrics"]["sharpe_daily"] = -0.2  # type: ignore[index]
     assert verdict("c2_trend", r, TRAIN)["verdict"] == "REJECT"
     assert verdict("c2_trend", _records(max_month_share=0.4), TRAIN)["verdict"] == "REJECT"
+
+
+def test_holdout_report_shows_verdict_and_checks(env) -> None:  # type: ignore[no-untyped-def]
+    from agent.research.holdout_report import build  # noqa: PLC0415
+    from agent.research.runner import SEGMENTS  # noqa: PLC0415
+
+    make_lock("c2_trend", PARAMS, locks_dir=env["locks"], protocol_path=env["protocol"], registry=env["reg"])
+    _run(env)
+    start, end = (t.isoformat() for t in SEGMENTS["train"])
+    for i, sr in enumerate((0.02, 0.03, 0.01, 0.04)):
+        env["reg"].append(
+            {
+                "strategy": "c2_trend",
+                "params": {"n": 20 + i, "k_atr": 3.0},
+                "segment": "diagnostic",
+                "start": start,
+                "end": end,
+                "cost_multiplier": 1.0,
+                "metrics": {"sr_daily": sr},
+            }
+        )
+    md = build(env["reg"], ["c2_trend", "c1_carry"])
+    assert "## c2_trend: **" in md and "dsr>0.95" in md and "| both | 1x |" in md
+    assert "hold-out not run" in md
