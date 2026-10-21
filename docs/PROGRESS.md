@@ -11,6 +11,7 @@
 | M3a Strategy code C1–C5 | ✅ done (offline) | |
 | M3b Sweeps | ✅ done, ⛳ **owner checkpoint** | 1,482 runs; C1 + C2 PROPOSE, C3 + C5 REJECT; see `docs/05-SWEEP-REVIEW.md` |
 | M6a Execution (offline half) | ✅ done | Binance feed/broker + testnet suite (M6b) need network |
+| M4 Hold-out | ✅ done: **no strategy passes** | C1 REJECT (2 trades, −$11), C2 REJECT (−$297); see `docs/07-HOLDOUT-REVIEW.md` |
 | M5 RiskGate + kill switch | ✅ done | Moved ahead of M4 (owner decision) so the single hold-out run uses the production gate |
 
 ## M1 report (2026-10-18)

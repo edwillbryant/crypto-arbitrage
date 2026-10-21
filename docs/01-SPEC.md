@@ -151,10 +151,23 @@ Every decision is logged as one JSON line: inputs snapshot hash, signal, risk-ga
 
 ---
 
-## 6. Comparison table (results intentionally empty)
+## 6. Comparison table (real results, filled 2026-10-21)
 
-| Strategy | Edge | Market | Timeframe | Sharpe | Max DD | Trades | Cost sensitivity | Verdict |
+Backtests on $10,000 with the assumed costs, not forecasts. Hold-out = 2025-01-01 → 2026-10-01, run once under the production RiskGate.
+Train = 2020–2023. Sharpe is net of costs: daily-return basis for the hold-out, hourly/daily decision basis for train.
+
+| Strategy | Edge | Market | Timeframe | Sharpe (hold-out / train) | Max DD (hold-out) | Trades (hold-out) | Cost sensitivity | Verdict |
 |---|---|---|---|---|---|---|---|---|
+| C1 Funding carry | Leverage premium | BTC/ETH spot+perp | 1h decisions, days–weeks hold | **−0.26** / 3.52 | 0.1% | 2 | High once funding is low: fees ≈ funding at 3× in 2022–23 | **REJECT** (M4): funding too low in 2025–26 to trade; −$11 |
+| C2 TS trend | Persistence | BTC/ETH perp | 1d | **−0.27** / 0.99 | 7.6% | 11 | Low (fees 3–9% of gross) | **REJECT** (M4): −$297; negative on both assets |
+| C3 Cascade MR | Liquidity to forced sellers | BTC/ETH perp | 1h | — / best 0.42, median −0.26 | — | — | — | **REJECT** (M3b): no robust cell of 54 |
+| C4 X-exchange arb | Price gaps | Spot, multi-venue | seconds | not run | — | — | Extreme | **Not evaluated**: second venue geo-blocked; expected reject |
+| C5 Seasonality | Control | BTC perp | 1h | — / best 0.08 | — | — | Very high (fees > price PnL) | **REJECT** (M3b), as a control must |
+| C6 Short vol | VRP | Deribit options | days | — | — | — | — | Deferred v2 |
+
+**No strategy is deployable.** Per §2 and the protocols, nothing is re-tuned on hold-out results.
+
+---|---|---|---|---|---|---|---|---|
 | C1 Funding carry | Leverage premium | BTC/ETH spot+perp | 8h funding / days | NOT RUN | NOT RUN | NOT RUN | Low turnover, expected low | Pending |
 | C2 TS trend | Persistence | BTC/ETH perp | 1d | NOT RUN | NOT RUN | NOT RUN | Expected low–medium | Pending |
 | C3 Cascade MR | Liquidity provision to forced sellers | BTC/ETH perp | 1h | NOT RUN | NOT RUN | NOT RUN | Expected **high** | Pending |
