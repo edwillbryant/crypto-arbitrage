@@ -1,0 +1,14 @@
+{
+ "git": {
+  "commit": "14145eb302ccc60021ac236513aea4cf692691c0",
+  "dirty": true
+ },
+ "locked_at": "2026-10-21T20:06:49.315007+00:00",
+ "params": {
+  "k_atr": 2.0,
+  "n": 200
+ },
+ "protocol": "docs/06-HOLDOUT-PROTOCOL.md",
+ "protocol_sha256": "567ee527ef040b6dc9e152d2efe52af4c59c78e78c3cda0e248be83e0aa94433",
+ "strategy": "c2_trend"
+}
