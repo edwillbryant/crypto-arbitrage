@@ -358,12 +358,37 @@ def _research_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser])
     dg.add_argument("--status", type=Path, default=Path("data/quality_status.json"))
     dg.add_argument("--registry", type=Path, default=Path("research/trials.jsonl"))
     dg.set_defaults(func=_cmd_diagnose)
+    _holdout_commands(rsub)
     rp = rsub.add_parser("report", help="apply the pre-registered selection and write the results report")
     rp.add_argument("--strategies", default="c1_carry,c2_trend,c3_cascade,c5_seasonality")
     rp.add_argument("--registry", type=Path, default=Path("research/trials.jsonl"))
     rp.add_argument("--out", type=Path, default=Path("docs/05-SWEEP-RESULTS.md"))
     rp.add_argument("--csv-dir", type=Path, default=Path("research/results"))
     rp.set_defaults(func=_cmd_report)
+
+
+def _holdout_commands(rsub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    bf = rsub.add_parser("backfill-daily", help="re-run train 1x variants once to record daily Sharpe ratios")
+    bf.add_argument("--strategies", default="c1_carry,c2_trend")
+    bf.add_argument("--workers", type=int, default=4)
+    bf.set_defaults(func=_cmd_backfill)
+    lk = rsub.add_parser("lock", help="lock a pre-registered cell for the hold-out (immutable; commit it)")
+    lk.add_argument("--strategy", required=True)
+    lk.add_argument("--params", required=True)
+    lk.set_defaults(func=_cmd_lock)
+    ho = rsub.add_parser("holdout", help="run the hold-out ONCE for a strategy with a committed lock")
+    ho.add_argument("--strategy", required=True)
+    ho.set_defaults(func=_cmd_holdout)
+    vd = rsub.add_parser("verdict", help="apply the hold-out protocol and write the results")
+    vd.add_argument("--strategies", default="c1_carry,c2_trend")
+    vd.add_argument("--out", type=Path, default=Path("docs/07-HOLDOUT-RESULTS.md"))
+    vd.set_defaults(func=_cmd_verdict)
+    for sp in (bf, lk, ho, vd):
+        sp.add_argument("--store", type=Path, default=Path("data/store"))
+        sp.add_argument("--status", type=Path, default=Path("data/quality_status.json"))
+        sp.add_argument("--registry", type=Path, default=Path("research/trials.jsonl"))
+        sp.add_argument("--locks", type=Path, default=Path("research/holdout_locks"))
+        sp.add_argument("--protocol", type=Path, default=Path("docs/06-HOLDOUT-PROTOCOL.md"))
 
 
 def _run_and_safety_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

@@ -38,3 +38,12 @@ def test_default_datasets_cover_the_spec() -> None:
     assert {"perp/fundingRate", "perp/metrics", "perp/premiumIndexKlines/1h", "spot/klines/1d"} <= set(
         DEFAULT_DATASETS
     )
+
+
+@pytest.mark.parametrize(
+    "cmd", ["sweep", "diagnose", "report", "backfill-daily", "lock", "holdout", "verdict"]
+)
+def test_every_research_command_is_registered(cmd: str, capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as e:
+        main(["research", cmd, "--help"])
+    assert e.value.code == 0 and "usage" in capsys.readouterr().out
