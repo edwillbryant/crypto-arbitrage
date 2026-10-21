@@ -52,3 +52,10 @@ All numbers are backtests on $10,000 with the assumed costs. They are not foreca
 2. **Lock C2** at `{n: 200, k_atr: 2.0}`? (Lock or drop.)
 3. **Amend the M4 protocol before the hold-out:** compute the deflated Sharpe on **daily** returns. This is stricter, and it's proposed now, before any hold-out data is seen.
 4. **Acknowledge the expected M4 outcomes:** C1 will likely be mostly flat in 2025–26 (low funding), and C2 is likely "insufficient evidence" on trade count. If both end without a PASS, paper trading (M7) runs with strategies off. That still tests the infrastructure.
+
+## Owner decisions (2026-10-21)
+
+1. C1 locked at `{entry_apr: 0.2, exit_apr: 0.0, n_periods: 3}`.
+2. C2 locked at `{n: 200, k_atr: 2.0}`.
+3. M4 deflated Sharpe uses daily returns (see `docs/06-HOLDOUT-PROTOCOL.md`).
+4. Expected-outcome caveats acknowledged; M4 started.
