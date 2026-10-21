@@ -73,3 +73,14 @@ def test_summarize_reports_every_spec_metric() -> None:
     assert s["costs_over_gross"] == pytest.approx(1.5 / 21.5)
     assert s["exposure_time"] == pytest.approx(0.5)
     assert s["sr_per_period"] * math.sqrt(365) == pytest.approx(s["sharpe"])
+
+
+def test_daily_metrics_resample_to_utc_day_closes() -> None:
+    from agent.research.metrics import daily_returns  # noqa: PLC0415
+
+    t = pd.date_range("2024-01-01", periods=72, freq="1h", tz="UTC")
+    eq = pd.Series(100.0, index=t)
+    eq[t >= pd.Timestamp("2024-01-02", tz="UTC")] = 110.0
+    eq[t >= pd.Timestamp("2024-01-03", tz="UTC")] = 99.0
+    r = daily_returns(eq)
+    assert list(r.round(10)) == [0.1, -0.1]  # day closes 100 -> 110 -> 99
