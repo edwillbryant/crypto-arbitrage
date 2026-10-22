@@ -11,5 +11,8 @@
 #     approved_on: <YYYY-MM-DD>
 initial_cash: 10000.0
 strategies: []
+# M4 found no strategy that passed, so M7 runs the full stack with no strategy (owner decision 2026-10-22):
+# feed, RiskGate, kill switch, reconciler, alerts and heartbeat run 24/7 while targets stay flat.
+monitor_only: true
 state_dir: data/state/paper
 limits_file: config/limits.yaml

@@ -1,0 +1,24 @@
+# Second host, different provider. Install: see docs/DEPLOY.md §4.
+[Unit]
+Description=Crypto agent - watchdog (verifies signed heartbeats from the primary)
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agent
+Group=agent
+WorkingDirectory=/opt/agent/app
+EnvironmentFile=/etc/agent/watchdog.env
+ExecStart=/opt/agent/venv/bin/python -m agent watchdog --port 8787 --silence 60 --alerts data/state/watchdog/alerts.jsonl
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/agent/app/data/state
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

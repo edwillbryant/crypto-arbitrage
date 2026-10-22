@@ -47,3 +47,21 @@ def test_every_research_command_is_registered(cmd: str, capsys: pytest.CaptureFi
     with pytest.raises(SystemExit) as e:
         main(["research", cmd, "--help"])
     assert e.value.code == 0 and "usage" in capsys.readouterr().out
+
+
+def test_paper_run_refuses_a_config_that_enables_nothing(tmp_path: Path) -> None:
+    cfg = tmp_path / "paper.yaml"
+    cfg.write_text(f"strategies: []\nmonitor_only: false\nstate_dir: {tmp_path / 'state'}\n")
+    assert main(["run", "--mode", "paper", "--config", str(cfg)]) == 2
+
+
+def test_shipped_paper_config_is_monitor_only() -> None:
+    from agent.live.config import load_paper_config  # noqa: PLC0415
+
+    cfg = load_paper_config(Path("config/paper.yaml"))
+    assert cfg.monitor_only and not cfg.strategies
+
+
+def test_watchdog_refuses_without_a_secret(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("AGENT_WATCHDOG_SECRET", raising=False)
+    assert main(["watchdog", "--alerts", str(tmp_path / "a.jsonl")]) == 2

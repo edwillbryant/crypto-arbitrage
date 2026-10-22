@@ -242,15 +242,69 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if args.replay:
         return _replay(args)
     cfg = load_paper_config(args.config)
-    if not cfg.strategies:
+    if not (cfg.monitor_only or cfg.strategies):
         why = "each needs a hold-out lock and owner approval"
-        print(f"refusing: {args.config} enables no strategies ({why})", file=sys.stderr)
+        print(
+            f"refusing: {args.config} enables no strategies ({why}) and monitor_only is off", file=sys.stderr
+        )
         return 2
-    print(
-        "refusing: the live Binance market-data feed is not built yet (M6b, needs network access)",
-        file=sys.stderr,
+    import signal  # noqa: PLC0415
+    import threading  # noqa: PLC0415
+
+    from agent.live.service import build_paper_runtime  # noqa: PLC0415
+
+    service, close = build_paper_runtime(cfg)
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    what = "monitor-only (no strategy, flat targets)" if cfg.monitor_only else cfg.strategies[0].name
+    print(f"paper service running: {what}; state in {cfg.state_dir}; stop with SIGTERM or Ctrl-C")
+    try:
+        service.run(stop, max_cycles=args.max_cycles)
+    finally:
+        close()
+    return 0
+
+
+def _cmd_watchdog(args: argparse.Namespace) -> int:
+    """Second-host watchdog: verify signed heartbeats; if the primary is silent too long, act and page."""
+    import os  # noqa: PLC0415
+    import threading  # noqa: PLC0415
+
+    from agent.ops.alerts import AlertSink  # noqa: PLC0415
+    from agent.ops.heartbeat import serve_watchdog  # noqa: PLC0415
+    from agent.ops.watchdog import NoPositionsBroker, Watchdog  # noqa: PLC0415
+
+    secret = os.environ.get(args.secret_env)
+    if not secret:
+        print(f"refusing: set the shared heartbeat secret in ${args.secret_env}", file=sys.stderr)
+        return 2
+    webhook = os.environ.get(args.webhook_env)
+    alerts = AlertSink(args.alerts, webhook_url=webhook, secrets=[secret])
+
+    def now() -> pd.Timestamp:
+        return pd.Timestamp.now(tz="UTC")
+
+    wd = Watchdog(NoPositionsBroker(), silence=pd.Timedelta(seconds=args.silence))
+    server = serve_watchdog(wd, secret=secret, host=args.host, port=args.port, now=now)
+    alerts.send(
+        "INFO", "watchdog started", f"listening {args.host}:{args.port} silence={args.silence}s", now=now()
     )
-    return 2
+    stop = threading.Event()
+    import signal  # noqa: PLC0415
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    try:
+        while not stop.wait(5):
+            action = wd.check(now())
+            if action is not None:
+                detail = f"flatten orders={len(action.orders)} errors={action.errors}"
+                alerts.send("CRITICAL", "primary silent: watchdog fired", detail, now=action.at)
+    finally:
+        server.shutdown()
+        server.server_close()
+    return 0
 
 
 def _replay(args: argparse.Namespace) -> int:
@@ -405,7 +459,17 @@ def _run_and_safety_commands(sub: argparse._SubParsersAction[argparse.ArgumentPa
     r.add_argument("--cash", type=float, default=10_000.0)
     r.add_argument("--limits", type=Path, default=Path("config/limits.yaml"))
     r.add_argument("--state-dir", type=Path, default=Path("data/state/replay"))
+    r.add_argument("--max-cycles", type=int, default=None, help="stop after N cycles (smoke tests)")
     r.set_defaults(func=_cmd_run)
+
+    w = sub.add_parser("watchdog", help="run the second-host watchdog (verifies signed heartbeats)")
+    w.add_argument("--host", default="0.0.0.0")
+    w.add_argument("--port", type=int, default=8787)
+    w.add_argument("--silence", type=int, default=60, help="seconds without a heartbeat before acting")
+    w.add_argument("--secret-env", default="AGENT_WATCHDOG_SECRET")
+    w.add_argument("--webhook-env", default="AGENT_ALERT_WEBHOOK")
+    w.add_argument("--alerts", type=Path, default=Path("data/state/watchdog/alerts.jsonl"))
+    w.set_defaults(func=_cmd_watchdog)
 
     for name, func, help_ in (
         ("kill", _cmd_kill, "trip the kill switch: cancel all, flatten, lock"),

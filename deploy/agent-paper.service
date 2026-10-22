@@ -1,0 +1,30 @@
+# Primary host. Install: see docs/DEPLOY.md §3.
+[Unit]
+Description=Crypto agent - paper service (monitor-only in M7)
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agent
+Group=agent
+WorkingDirectory=/opt/agent/app
+EnvironmentFile=/etc/agent/agent.env
+ExecStart=/opt/agent/venv/bin/python -m agent run --mode paper --config config/paper.yaml
+# SIGTERM -> the service finishes its cycle, writes the daily summary and exits.
+KillSignal=SIGTERM
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=30
+StartLimitIntervalSec=900
+StartLimitBurst=5
+# Hardening: the agent needs only its state dir and outbound HTTPS.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/agent/app/data/state
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

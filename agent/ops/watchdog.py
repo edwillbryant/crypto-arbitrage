@@ -14,7 +14,7 @@ import pandas as pd
 from agent.core.types import Instrument
 from agent.data.datasets import Market
 from agent.execution.order_manager import client_order_id
-from agent.execution.types import Ack, Broker, Order, OrderType
+from agent.execution.types import Ack, Broker, Order, OrderType, SymbolRules
 
 
 @dataclass
@@ -30,6 +30,10 @@ class Watchdog:
         self.broker, self.silence = broker, silence
         self._last: pd.Timestamp | None = None
         self._fired = False
+
+    @property
+    def last_heartbeat(self) -> pd.Timestamp | None:
+        return self._last
 
     def heartbeat(self, t: pd.Timestamp) -> None:
         self._last, self._fired = t, False
@@ -67,3 +71,27 @@ class Watchdog:
             except Exception as e:  # broad on purpose
                 action.errors.append(f"{key}: {e}")
         return action
+
+
+class NoPositionsBroker:
+    """Stands in for the exchange broker while the primary is paper trading: paper positions exist only
+    on the primary, so a watchdog on another host has nothing to cancel or flatten and can only page the
+    owner. Live mode replaces this with a BinanceBroker on the watchdog's own trade-only key."""
+
+    def cancel_all(self) -> None:
+        return None
+
+    def positions(self) -> dict[str, float]:
+        return {}
+
+    def open_orders(self) -> list[str]:
+        return []
+
+    def equity(self, marks: dict[str, float]) -> float:
+        return 0.0
+
+    def rules(self, instrument: Instrument) -> SymbolRules:
+        raise RuntimeError("paper watchdog has no symbol rules")
+
+    def place(self, order: Order) -> Ack:
+        raise RuntimeError("paper watchdog never places orders")

@@ -61,6 +61,25 @@ class PaperConfig(BaseModel):
     strategies: list[StrategyEntry] = Field(default_factory=list)
     state_dir: str = "data/state/paper"
     limits_file: str = "config/limits.yaml"
+    # Run the full loop with no strategy (flat targets): the M7 infrastructure test after M4 found no edge.
+    monitor_only: bool = False
+    cycle_seconds: int = Field(default=60, ge=5)
+    killswitch_port: int = 8765  # localhost only
+    futures_base: str = "https://fapi.binance.com"
+    spot_base: str = "https://api.binance.com"
+    watchdog_url: str | None = None  # e.g. http://watchdog-host:8787 ; secret read from the env var below
+    watchdog_secret_env: str = "AGENT_WATCHDOG_SECRET"
+    alert_webhook_env: str = "AGENT_ALERT_WEBHOOK"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _one_mode(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("monitor_only") and data.get("strategies"):
+                raise ValueError("monitor_only and strategies are mutually exclusive: pick one")
+            if len(data.get("strategies") or []) > 1:
+                raise ValueError("v1 paper trading runs one strategy at a time")
+        return data
 
 
 def load_paper_config(path: Path) -> PaperConfig:

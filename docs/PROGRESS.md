@@ -193,7 +193,7 @@ The full M3 sweep is about 5 single-core hours across 3 cost multipliers, and va
 - `live/feed.py`: the `MarketFeed` interface, plus `StoreFeed` (point-in-time store with a synthetic book) for tests and replay.
 - `live/config.py` + `config/paper.yaml`: a strategy can be enabled only if it is live-eligible, has a matching **hold-out lock file** (M4), and has a recorded **owner approval** (M7). Today the list is empty and must stay that way.
 - CLI:
-  - `python -m agent run --mode paper --config config/paper.yaml` refuses: no approved strategies, and no live feed yet.
+  - `python -m agent run --mode paper --config config/paper.yaml` refused at the time (no approved strategies, no live feed). Superseded by M6b: it now runs monitor-only.
   - `python -m agent run --mode paper --replay ...` runs stored history through the full live stack, labelled "not validated, not paper trading".
   - `--mode live` doesn't exist.
 
@@ -210,11 +210,7 @@ Coverage: `agent/risk` 100% branch; `agent/execution` + `live` + `ops` 97.8%. Bo
 
 **Operational requirement found during review:** the agent must trade in a **dedicated Binance sub-account** holding only the capital you assign to it. On a shared account, the orphan rule would treat your other spot holdings (for example BNB kept for fees) as orphans and sell them. The live broker will also restrict positions to the trading universe, but the dedicated account is the real control.
 
-**M6b (needs network):**
-- Binance WebSocket feed (book ticker, klines, mark price/funding, sequence-gap and staleness tracking, clock-drift check against server time)
-- `BinanceBroker` over `SafeExchange`: positions limited to the universe, equity from the margin balance, margin ratio into `Health`, rules from market metadata
-- testnet integration suite: place/cancel/fill, WebSocket disconnect → stale → halt, 429 handling, full kill-switch flatten
-- watchdog transport (heartbeat push to the second host) and alerting
+**M6b (needs network):** done 2026-10-22. See "M6b infrastructure" below.
 
 ## Network access opened (2026-10-18)
 
@@ -233,3 +229,21 @@ Coverage: `agent/risk` 100% branch; `agent/execution` + `live` + `ops` 97.8%. Bo
 - **Consequence for the plan:**
   - Research (M1 ingest, M3 sweeps, M4 hold-out) runs here.
   - Paper and live trading (M6b/M7) must run on a server located where the owner is eligible to use Binance. Using a VPN or proxy to get around the restriction is not an option: it breaches the terms and risks a frozen account.
+
+## M6b infrastructure (2026-10-22): owner decision "finish infrastructure, paper trade with strategies off"
+
+| Piece | Status |
+|---|---|
+| `BinanceRestFeed`: REST polling of time, book ticker, klines, funding; drops still-forming bars; clock drift; USDC depeg | ✅ passes against the real futures testnet (`-m integration`) |
+| `BinanceBroker` over `SafeExchange`: positions limited to the universe, both wallets in equity, rules from market metadata, rejections vs unknown-outcome network errors | ✅ unit tests on a fake ccxt client. The signed testnet round trip (`tests/integration/test_binance_broker_testnet.py`) **has not been run**: it needs futures-testnet keys in `BINANCE_TESTNET_KEY`/`BINANCE_TESTNET_SECRET`. |
+| `Service`: 24/7 cycle loop, alerts on mode changes only, per-UTC-day summaries, survives a crashing cycle, SIGTERM-clean | ✅ |
+| Alerts: JSONL file plus optional webhook, secrets redacted, webhook failure never stops the loop | ✅ |
+| Watchdog transport: HMAC-signed heartbeats, ≤ 30 s skew (no replay), `python -m agent watchdog` | ✅ |
+| `config/paper.yaml`: `monitor_only: true`, no strategies; config refuses monitor_only together with strategies | ✅ |
+| `docs/DEPLOY.md` plus `deploy/*.service`: eligible-jurisdiction VPS, second-host watchdog, drills, M7 pass criteria | ✅ written, not yet exercised on a real host |
+
+**Not built (deliberately):**
+- WebSocket feed. REST polling at 60 s cycles is enough when nothing trades, so it's deferred until a strategy needs it.
+- Margin ratio into `Health`: it only matters with open perp positions.
+
+**Next: M7.** Run monitor-only paper trading on your VPS for ≥ 30 days (`docs/DEPLOY.md`). It can't run from this cloud session, because Binance returns 451 here.

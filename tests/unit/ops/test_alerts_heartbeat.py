@@ -6,7 +6,6 @@ import urllib.request
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from agent.ops.alerts import AlertSink
 from agent.ops.heartbeat import HeartbeatClient, serve_watchdog, sign, verify

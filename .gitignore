@@ -12,3 +12,4 @@ __pycache__/
 
 # research run logs (the trial registry itself IS committed)
 research/*.log
+.coverage
