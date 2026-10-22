@@ -106,6 +106,8 @@ class LiveLoop:
     def step(self, now: pd.Timestamp) -> CycleReport:
         self._now, self._events = now, []
         self.feed.advance(now)
+        for err in self.feed.drain_errors():
+            self._on_error("error", f"feed: {err}")
         instruments = self.strategy.instruments()
         marks = {i.key: m for i in instruments if (m := self.feed.mark(i)) is not None}
 

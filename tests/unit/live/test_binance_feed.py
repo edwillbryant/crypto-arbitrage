@@ -104,3 +104,16 @@ def test_failures_are_collected_not_raised_and_data_goes_stale() -> None:
     errors = f.drain_errors()
     assert any("bookTicker" in e for e in errors) and f.drain_errors() == []
     assert f.book_age_s(SERVER + pd.Timedelta(seconds=90)) > 60  # the old quote is kept but flagged stale
+
+
+def test_a_bar_fetched_while_forming_is_never_served_later_as_closed() -> None:
+    """Fetched at 16:14 the 16:00 bar is partial; at 19:14 (polls failing) it must not look closed."""
+    get = FakeGet()
+    f = _feed(get)
+    get.fail = {"klines"}
+    later = SERVER + pd.Timedelta(hours=3)
+    f.advance(later)
+    bars = f.snapshot([DataRequest(klines("perp", "1h"), "BTCUSDT", pd.Timedelta(days=1))], later)
+    assert bars.get(klines("perp", "1h"), "BTCUSDT")["key_time"].max() == SERVER.floor("1h") - pd.Timedelta(
+        hours=1
+    )

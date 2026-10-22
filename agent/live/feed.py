@@ -40,6 +40,8 @@ class MarketFeed(Protocol):
 
     def clock_drift_ms(self) -> float: ...
 
+    def drain_errors(self) -> list[str]: ...
+
 
 class StoreFeed:
     def __init__(
@@ -111,3 +113,6 @@ class StoreFeed:
 
     def clock_drift_ms(self) -> float:
         return 0.0
+
+    def drain_errors(self) -> list[str]:
+        return []
